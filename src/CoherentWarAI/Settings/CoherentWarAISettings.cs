@@ -47,6 +47,18 @@ namespace CoherentWarAI.Settings
         public float AllyWeight = 0.25f;
         public float ChokepointGain = GarrisonPlanner.DefaultChokepointGain;
         public float ChokepointSaturation = GarrisonPlanner.DefaultChokepointSaturation;
+
+        /// <summary>
+        /// Route analysis: find the gateways into a realm by walking the campaign
+        /// map's travel graph, rather than merely counting foreign neighbours.
+        /// </summary>
+        public bool EnableChokepointAnalysis = true;
+
+        /// <summary>
+        /// How much land behind a gate counts as "a lot", so realms of different
+        /// sizes stay comparable.
+        /// </summary>
+        public float GatewaySaturation = 4f;
         public int RecruitCapMax = GarrisonPlanner.DefaultRecruitCapMax;
 
         /// <summary>Active settings instance. Replaced by the MCM adapter later.</summary>

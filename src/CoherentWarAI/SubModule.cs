@@ -20,6 +20,7 @@ namespace CoherentWarAI
                 campaignStarter.AddModel(new CoherentTargetScoreModel());
                 campaignStarter.AddModel(new CoherentGarrisonModel());
 
+                campaignStarter.AddBehavior(new ChokepointMapBehavior());
                 campaignStarter.AddBehavior(new WarPostureBehavior());
             }
         }

@@ -23,6 +23,7 @@
     <Compile Include="..\..\src\CoherentWarAI\Logic\PosturePlanner.cs" Link="Logic\PosturePlanner.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\EngagementHysteresis.cs" Link="Logic\EngagementHysteresis.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\GarrisonPlanner.cs" Link="Logic\GarrisonPlanner.cs" />
+    <Compile Include="..\..\src\CoherentWarAI\Logic\ChokepointAnalyzer.cs" Link="Logic\ChokepointAnalyzer.cs" />
   </ItemGroup>
 
 </Project>

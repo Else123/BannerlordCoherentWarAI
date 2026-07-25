@@ -1,3 +1,4 @@
+using CoherentWarAI.Behaviors;
 using CoherentWarAI.Logic;
 using CoherentWarAI.Settings;
 using TaleWorlds.CampaignSystem;
@@ -113,7 +114,18 @@ namespace CoherentWarAI.Models
                 settings.GarrisonThreatCap,
                 settings.PeaceCap);
 
-            float chokepoint = GarrisonPlanner.ChokepointScore(foreignNeighbors, friendlyNeighbors, settings.ChokepointSaturation);
+            // How much of the realm sits behind this settlement, from the route
+            // analysis - a gate with no way around it outranks a fief that merely
+            // happens to sit near the border.
+            //
+            // Only fall back to counting neighbours when the routes have not been
+            // worked out at all. A computed score of zero is a real answer - "the
+            // enemy can simply march around this one" - and must not be overridden
+            // by the cruder heuristic, which is exactly what this feature exists to
+            // correct.
+            float chokepoint = ChokepointMapBehavior.HasComputedScores
+                ? ChokepointMapBehavior.GetGatewayScore(settlement)
+                : GarrisonPlanner.ChokepointScore(foreignNeighbors, friendlyNeighbors, settings.ChokepointSaturation);
 
             return GarrisonPlanner.GarrisonMultiplier(threatFactor, chokepoint, settings.ChokepointGain);
         }
