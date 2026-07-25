@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <Compile Include="..\..\src\CoherentWarAI\Logic\TargetWeights.cs" Link="Logic\TargetWeights.cs" />
+    <Compile Include="..\..\src\CoherentWarAI\Logic\PosturePlanner.cs" Link="Logic\PosturePlanner.cs" />
   </ItemGroup>
 
 </Project>

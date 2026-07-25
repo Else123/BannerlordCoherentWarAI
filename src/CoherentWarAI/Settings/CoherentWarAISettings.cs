@@ -17,6 +17,18 @@ namespace CoherentWarAI.Settings
         public float FrontFloor = TargetWeights.DefaultFrontFloor;
         public float FrontGain = TargetWeights.DefaultFrontGain;
 
+        // Slice B-def - defense-first posture.
+        public bool EnableDefensivePosture = true;
+        public float AggressiveShare = PosturePlanner.DefaultAggressiveShare;
+        public int MinimumDefenders = PosturePlanner.DefaultMinimumDefenders;
+        public float ValorWeight = PosturePlanner.DefaultValorWeight;
+
+        /// <summary>
+        /// Whether the player's own clan parties (companion parties) are given
+        /// objectives too. On by default: they otherwise wander off and die.
+        /// </summary>
+        public bool ManagePlayerClanParties = true;
+
         /// <summary>Active settings instance. Replaced by the MCM adapter later.</summary>
         public static CoherentWarAISettings Current { get; set; } = new CoherentWarAISettings();
     }

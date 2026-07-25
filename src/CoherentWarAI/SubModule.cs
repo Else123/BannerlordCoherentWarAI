@@ -1,3 +1,4 @@
+using CoherentWarAI.Behaviors;
 using CoherentWarAI.Models;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.Core;
@@ -17,6 +18,8 @@ namespace CoherentWarAI
                 // so any other TargetScoreCalculatingModel already registered keeps
                 // working through the vanilla chain.
                 campaignStarter.AddModel(new CoherentTargetScoreModel());
+
+                campaignStarter.AddBehavior(new WarPostureBehavior());
             }
         }
     }

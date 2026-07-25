@@ -64,6 +64,8 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Behaviors\WarPostureBehavior.cs" />
+    <Compile Include="Logic\PosturePlanner.cs" />
     <Compile Include="Logic\TargetWeights.cs" />
     <Compile Include="Models\CoherentTargetScoreModel.cs" />
     <Compile Include="Settings\CoherentWarAISettings.cs" />

@@ -13,9 +13,14 @@ weakest, fights incoherent multi-front wars, and leaves realms undefended until
 they are already under attack. This mod addresses that through clean, additive
 overrides of the vanilla decision models:
 
-- **Target selection (Slice A):** de-greeds the target score so overwhelming a
-  soft target no longer beats attacking a coherent, reachable objective on your
-  own front.
+- **Defense first:** holding your own territory is the default job. Vanilla never
+  assigns AI lords a party objective at all, so nobody guards anything until a
+  settlement is already under attack. This mod assigns objectives explicitly:
+  most lords defend, and only a limited number - scaled down as more of the realm
+  comes under threat, and picked by strength and the lord's Valor - are released
+  to attack.
+- **Target selection:** de-greeds the target score so overwhelming a soft target
+  no longer beats attacking a coherent, reachable objective on your own front.
 - **Garrison defense (Slice C):** makes garrison strength and recruitment
   threat- and frontline-aware, so border fiefs are actually defensible.
 - **Strategic coordination (Slice B):** a faction-level layer that stops lords
