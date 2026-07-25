@@ -19,24 +19,42 @@ namespace CoherentWarAI.Models
     /// </summary>
     public class CoherentTargetScoreModel : DefaultTargetScoreCalculatingModel
     {
+        private readonly CommitmentStore _commitments = new CommitmentStore();
+
         public override float GetTargetScoreForFaction(Settlement targetSettlement, Army.ArmyTypes missionType, MobileParty mobileParty, float ourStrength)
         {
             float baseScore = base.GetTargetScoreForFaction(targetSettlement, missionType, mobileParty, ourStrength);
 
+            CoherentWarAISettings settings = CoherentWarAISettings.Current;
+            if (settings == null)
+            {
+                return baseScore;
+            }
+
+            // Only touch offensive target picking; leave defense to vanilla.
+            bool isOffensive = missionType == Army.ArmyTypes.Besieger || missionType == Army.ArmyTypes.Raider;
+
             if (baseScore <= 0f)
             {
-                return baseScore;
+                // Vanilla just declared this target impossible. That verdict flips
+                // the moment defenders change - which is what makes lords dither in
+                // front of a castle. Hold a recent commitment instead of dropping it.
+                return isOffensive
+                    ? HoldCommitmentIfReasonable(targetSettlement, missionType, mobileParty, ourStrength, settings)
+                    : baseScore;
             }
 
-            CoherentWarAISettings settings = CoherentWarAISettings.Current;
-            if (settings == null || !settings.EnableTargetDeGreed)
+            if (!isOffensive)
             {
                 return baseScore;
             }
 
-            // Only de-greed offensive target picking; leave defense to vanilla.
-            if (missionType != Army.ArmyTypes.Besieger && missionType != Army.ArmyTypes.Raider)
+            if (!settings.EnableTargetDeGreed)
             {
+                if (settings.EnableCommitmentHysteresis)
+                {
+                    _commitments.Remember(mobileParty, targetSettlement, missionType, baseScore);
+                }
                 return baseScore;
             }
 
@@ -46,7 +64,60 @@ namespace CoherentWarAI.Models
             CountFrontNeighbors(targetSettlement, mobileParty, out int ownedByUs, out int notOwnedByTarget);
             float wFront = TargetWeights.FrontCoherence(ownedByUs, notOwnedByTarget, settings.FrontFloor, settings.FrontGain);
 
-            return baseScore * wOverkill * wFront;
+            float score = baseScore * wOverkill * wFront;
+
+            // Remember this assessment while the target is still clearly ratable,
+            // so a later dip does not erase what this lord already decided.
+            if (settings.EnableCommitmentHysteresis)
+            {
+                _commitments.Remember(mobileParty, targetSettlement, missionType, score);
+            }
+            return score;
+        }
+
+        /// <summary>
+        /// Keeps a lord on a target vanilla has momentarily written off, as long as
+        /// the situation has not genuinely deteriorated. Returns 0 (vanilla's own
+        /// verdict) when there is no commitment worth holding.
+        ///
+        /// Two guards stop this from becoming suicide: the remembered rating decays
+        /// to nothing over time, and once the commitment is no longer fresh the
+        /// strength ratio must still clear the abandon threshold.
+        /// </summary>
+        private float HoldCommitmentIfReasonable(Settlement targetSettlement, Army.ArmyTypes missionType, MobileParty mobileParty, float ourStrength, CoherentWarAISettings settings)
+        {
+            if (!settings.EnableCommitmentHysteresis || targetSettlement == null || mobileParty == null)
+            {
+                return 0f;
+            }
+
+            if (!_commitments.TryGet(mobileParty, targetSettlement, missionType,
+                    out float lastScore, out float hoursSinceSeen, out float hoursSinceCommitted))
+            {
+                return 0f;
+            }
+
+            float retention = EngagementHysteresis.RetentionFactor(hoursSinceSeen, settings.RetentionDecayHours);
+            if (retention <= 0f)
+            {
+                return 0f;
+            }
+
+            // A fresh commitment tolerates defenders flickering in and out, but even
+            // then an outright collapse of our own force ends it - the window must
+            // never march a shattered party to its death.
+            float ratio = EngagementHysteresis.StrengthRatio(ourStrength, EstimateDefenderStrength(targetSettlement));
+            bool isFresh = EngagementHysteresis.IsWithinCommitmentWindow(hoursSinceCommitted, settings.MinCommitmentHours);
+            float threshold = EngagementHysteresis.ThresholdForCommitment(isFresh, settings.AbandonRatio, settings.CollapseRatio);
+
+            if (!EngagementHysteresis.ShouldPursue(ratio, committed: true, settings.EngageRatio, threshold))
+            {
+                return 0f;
+            }
+
+            // Scale by how the odds actually stand now, so a held target cannot
+            // outrank freshly rated ones on a stale, rosier assessment.
+            return lastScore * retention * EngagementHysteresis.OddsFactor(ratio, settings.EngageRatio);
         }
 
         /// <summary>

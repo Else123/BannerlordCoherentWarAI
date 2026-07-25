@@ -21,6 +21,12 @@ overrides of the vanilla decision models:
   to attack.
 - **Target selection:** de-greeds the target score so overwhelming a soft target
   no longer beats attacking a coherent, reachable objective on your own front.
+- **No more dithering at the gates:** vanilla re-decides every target from scratch
+  each tick against a single hard threshold, so a lord in front of a castle flips
+  between attacking and aborting whenever the defenders change - which is also
+  exploitable by stepping in and out of a settlement. Committing to a target and
+  sticking with one now use different thresholds, and a fresh commitment is not
+  reconsidered over momentary noise (though an outright collapse still ends it).
 - **Garrison defense (Slice C):** makes garrison strength and recruitment
   threat- and frontline-aware, so border fiefs are actually defensible.
 - **Strategic coordination (Slice B):** a faction-level layer that stops lords

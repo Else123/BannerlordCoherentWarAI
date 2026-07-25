@@ -65,9 +65,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Behaviors\WarPostureBehavior.cs" />
+    <Compile Include="Logic\EngagementHysteresis.cs" />
     <Compile Include="Logic\PosturePlanner.cs" />
     <Compile Include="Logic\TargetWeights.cs" />
     <Compile Include="Models\CoherentTargetScoreModel.cs" />
+    <Compile Include="Models\CommitmentStore.cs" />
     <Compile Include="Settings\CoherentWarAISettings.cs" />
     <Compile Include="SubModule.cs" />
   </ItemGroup>

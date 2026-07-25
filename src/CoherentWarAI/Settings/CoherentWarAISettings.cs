@@ -17,6 +17,14 @@ namespace CoherentWarAI.Settings
         public float FrontFloor = TargetWeights.DefaultFrontFloor;
         public float FrontGain = TargetWeights.DefaultFrontGain;
 
+        // Commitment hysteresis - stops lords dithering in front of a castle.
+        public bool EnableCommitmentHysteresis = true;
+        public float EngageRatio = EngagementHysteresis.DefaultEngageRatio;
+        public float AbandonRatio = EngagementHysteresis.DefaultAbandonRatio;
+        public float MinCommitmentHours = EngagementHysteresis.DefaultMinCommitmentHours;
+        public float RetentionDecayHours = EngagementHysteresis.DefaultRetentionDecayHours;
+        public float CollapseRatio = EngagementHysteresis.DefaultCollapseRatio;
+
         // Slice B-def - defense-first posture.
         public bool EnableDefensivePosture = true;
         public float AggressiveShare = PosturePlanner.DefaultAggressiveShare;
