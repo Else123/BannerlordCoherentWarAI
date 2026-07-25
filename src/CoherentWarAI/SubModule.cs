@@ -33,6 +33,7 @@ namespace CoherentWarAI
                 campaignStarter.AddModel(new CoherentGarrisonModel());
 
                 campaignStarter.AddBehavior(new ChokepointMapBehavior());
+                campaignStarter.AddBehavior(new WarCoordinatorBehavior());
                 campaignStarter.AddBehavior(new WarPostureBehavior());
             }
         }

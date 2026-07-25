@@ -1,3 +1,4 @@
+using CoherentWarAI.Behaviors;
 using CoherentWarAI.Diagnostics;
 using CoherentWarAI.Logic;
 using CoherentWarAI.Settings;
@@ -65,15 +66,30 @@ namespace CoherentWarAI.Models
             CountFrontNeighbors(targetSettlement, mobileParty, out int ownedByUs, out int notOwnedByTarget);
             float wFront = TargetWeights.FrontCoherence(ownedByUs, notOwnedByTarget, settings.FrontFloor, settings.FrontGain);
 
-            float score = baseScore * wOverkill * wFront;
+            // What the rest of our realm is already sending here. Vanilla has no
+            // such term at all, which is why every lord picks the same fief.
+            //
+            // Only applies to lords who would be *arriving*: someone already
+            // committed here is not joining a pile, and damping him because an ally
+            // turned up too would undercut a siege he is already prosecuting.
+            float wCoord = 1f;
+            if (settings.EnableCoordination
+                && WarCoordinatorBehavior.GetCommittedTarget(mobileParty) != targetSettlement)
+            {
+                float committed = WarCoordinatorBehavior.GetCommittedStrengthExcluding(targetSettlement, mobileParty);
+                float required = ClaimPlanner.RequiredStrength(defenderStrength, settings.RequiredMargin);
+                wCoord = ClaimPlanner.SaturationBias(committed, required, settings.SaturationSuppression, settings.NeglectBonus);
+            }
+
+            float score = baseScore * wOverkill * wFront * wCoord;
 
             // Off by default: this runs hundreds of times per game hour.
             if (WarAiLog.VerboseScoring)
             {
                 WarAiLog.Write("Score", string.Format(
-                    "{0} -> {1} ({2}): vanilla {3:F1} x overkill {4:F2} x front {5:F2} = {6:F1}",
+                    "{0} -> {1} ({2}): vanilla {3:F1} x overkill {4:F2} x front {5:F2} x coord {6:F2} = {7:F1}",
                     mobileParty.LeaderHero?.Name, targetSettlement.Name, missionType,
-                    baseScore, wOverkill, wFront, score));
+                    baseScore, wOverkill, wFront, wCoord, score));
             }
 
             // Remember this assessment while the target is still clearly ratable,
@@ -137,6 +153,50 @@ namespace CoherentWarAI.Models
                 ratio, isFresh ? "fresh" : "matured", held));
 
             return held;
+        }
+
+        /// <summary>
+        /// Draws defending lords to the gates of the realm.
+        ///
+        /// This is the score vanilla uses to choose where a party sits and watches.
+        /// Left alone it spreads lords by local threat and ownership, which means
+        /// they end up wherever the last alarm came from rather than where an
+        /// invader must actually pass. Weighting it by how much of the realm lies
+        /// behind a settlement puts them on the approaches instead.
+        /// </summary>
+        public override float CalculateDefensivePatrollingScoreForSettlement(Settlement settlement, bool isTargetingPort, MobileParty mobileParty)
+        {
+            float baseScore = base.CalculateDefensivePatrollingScoreForSettlement(settlement, isTargetingPort, mobileParty);
+
+            CoherentWarAISettings settings = CoherentWarAISettings.Current;
+            if (baseScore <= 0f || settings == null || !settings.EnableGatewayDefense)
+            {
+                return baseScore;
+            }
+
+            // Only our own gates are worth standing at.
+            if (settlement?.MapFaction == null || mobileParty?.MapFaction == null
+                || settlement.MapFaction != mobileParty.MapFaction)
+            {
+                return baseScore;
+            }
+
+            // Somewhere already under attack is handled by the defence scoring, which
+            // competes for the same decision. Boosting a quiet gate here could
+            // outrank a burning town, which would be the opposite of the intent:
+            // this is about standing watch before trouble, not instead of answering it.
+            if (settlement.IsUnderSiege || settlement.Party?.MapEvent != null)
+            {
+                return baseScore;
+            }
+
+            float gateway = ChokepointMapBehavior.GetGatewayScore(settlement);
+            if (gateway <= 0f)
+            {
+                return baseScore;
+            }
+
+            return baseScore * ClaimPlanner.GatewayDefenseBias(gateway, settings.GatewayDefenseGain);
         }
 
         /// <summary>

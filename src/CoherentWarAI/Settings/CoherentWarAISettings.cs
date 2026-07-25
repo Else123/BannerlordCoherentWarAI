@@ -61,6 +61,16 @@ namespace CoherentWarAI.Settings
         public float GatewaySaturation = 4f;
         public int RecruitCapMax = GarrisonPlanner.DefaultRecruitCapMax;
 
+        // Coordination between a realm's own lords.
+        public bool EnableCoordination = true;
+        public float RequiredMargin = ClaimPlanner.DefaultRequiredMargin;
+        public float SaturationSuppression = ClaimPlanner.DefaultSaturationSuppression;
+        public float NeglectBonus = ClaimPlanner.DefaultNeglectBonus;
+
+        /// <summary>Draw defending lords to the gateways rather than to the last alarm.</summary>
+        public bool EnableGatewayDefense = true;
+        public float GatewayDefenseGain = ClaimPlanner.DefaultGatewayDefenseGain;
+
         // Diagnostics. On by default: the weights above ship as conservative
         // starting points, and tuning them without a trace is guesswork.
         public bool EnableLogging = true;

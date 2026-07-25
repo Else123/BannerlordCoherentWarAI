@@ -65,7 +65,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Behaviors\ChokepointMapBehavior.cs" />
+    <Compile Include="Behaviors\WarCoordinatorBehavior.cs" />
     <Compile Include="Behaviors\WarPostureBehavior.cs" />
+    <Compile Include="Logic\ClaimPlanner.cs" />
     <Compile Include="Diagnostics\WarAiLog.cs" />
     <Compile Include="Logic\ChokepointAnalyzer.cs" />
     <Compile Include="Logic\EngagementHysteresis.cs" />
