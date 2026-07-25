@@ -1,3 +1,4 @@
+using CoherentWarAI.Diagnostics;
 using CoherentWarAI.Logic;
 using CoherentWarAI.Settings;
 using TaleWorlds.CampaignSystem;
@@ -66,6 +67,15 @@ namespace CoherentWarAI.Models
 
             float score = baseScore * wOverkill * wFront;
 
+            // Off by default: this runs hundreds of times per game hour.
+            if (WarAiLog.VerboseScoring)
+            {
+                WarAiLog.Write("Score", string.Format(
+                    "{0} -> {1} ({2}): vanilla {3:F1} x overkill {4:F2} x front {5:F2} = {6:F1}",
+                    mobileParty.LeaderHero?.Name, targetSettlement.Name, missionType,
+                    baseScore, wOverkill, wFront, score));
+            }
+
             // Remember this assessment while the target is still clearly ratable,
             // so a later dip does not erase what this lord already decided.
             if (settings.EnableCommitmentHysteresis)
@@ -117,7 +127,16 @@ namespace CoherentWarAI.Models
 
             // Scale by how the odds actually stand now, so a held target cannot
             // outrank freshly rated ones on a stale, rosier assessment.
-            return lastScore * retention * EngagementHysteresis.OddsFactor(ratio, settings.EngageRatio);
+            float held = lastScore * retention * EngagementHysteresis.OddsFactor(ratio, settings.EngageRatio);
+
+            // This is the flip-flop being prevented: vanilla just wrote the target
+            // off, and we are keeping the lord on it. Worth seeing in the log.
+            WarAiLog.Write("Hysteresis", string.Format(
+                "{0} holds {1} ({2}) - vanilla would abort; ratio {3:F2}, {4} commitment, score {5:F1}",
+                mobileParty.LeaderHero?.Name, targetSettlement.Name, missionType,
+                ratio, isFresh ? "fresh" : "matured", held));
+
+            return held;
         }
 
         /// <summary>

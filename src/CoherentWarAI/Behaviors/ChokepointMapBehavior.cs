@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CoherentWarAI.Diagnostics;
 using CoherentWarAI.Logic;
 using CoherentWarAI.Settings;
 using TaleWorlds.CampaignSystem;
@@ -138,6 +139,32 @@ namespace CoherentWarAI.Behaviors
 
             GatewayScores = scores;
             HasComputedScores = true;
+            LogTopGateways(scores);
+        }
+
+        /// <summary>
+        /// Reports the strongest gateways so the route analysis can be sanity-checked
+        /// against the actual map - these are the fiefs worth holding and watching.
+        /// </summary>
+        private static void LogTopGateways(Dictionary<Settlement, float> scores)
+        {
+            if (!WarAiLog.Enabled || scores.Count == 0)
+            {
+                return;
+            }
+
+            List<KeyValuePair<Settlement, float>> ranked = new List<KeyValuePair<Settlement, float>>(scores);
+            ranked.Sort((a, b) => b.Value.CompareTo(a.Value));
+
+            WarAiLog.Section("Day " + (int)CampaignTime.Now.ToDays + " - gateways into each realm");
+            int shown = ranked.Count < 15 ? ranked.Count : 15;
+            for (int i = 0; i < shown; i++)
+            {
+                Settlement settlement = ranked[i].Key;
+                WarAiLog.Write("Gateway", string.Format("{0,-24} {1:F2}  ({2})",
+                    settlement.Name, ranked[i].Value, settlement.MapFaction?.Name));
+            }
+            WarAiLog.Flush();
         }
 
         private static List<Settlement> CollectFortifications()

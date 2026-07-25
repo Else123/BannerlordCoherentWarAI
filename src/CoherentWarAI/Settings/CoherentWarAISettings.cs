@@ -61,6 +61,16 @@ namespace CoherentWarAI.Settings
         public float GatewaySaturation = 4f;
         public int RecruitCapMax = GarrisonPlanner.DefaultRecruitCapMax;
 
+        // Diagnostics. On by default: the weights above ship as conservative
+        // starting points, and tuning them without a trace is guesswork.
+        public bool EnableLogging = true;
+
+        /// <summary>
+        /// Log every target-scoring decision. Very noisy - that path runs hundreds
+        /// of times per game hour - so only worth enabling to debug one situation.
+        /// </summary>
+        public bool VerboseScoreLogging = false;
+
         /// <summary>Active settings instance. Replaced by the MCM adapter later.</summary>
         public static CoherentWarAISettings Current { get; set; } = new CoherentWarAISettings();
     }

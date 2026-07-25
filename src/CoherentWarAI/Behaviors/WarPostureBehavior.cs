@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CoherentWarAI.Diagnostics;
 using CoherentWarAI.Logic;
 using CoherentWarAI.Settings;
 using TaleWorlds.CampaignSystem;
@@ -46,6 +47,8 @@ namespace CoherentWarAI.Behaviors
                 return;
             }
 
+            WarAiLog.Section("Day " + (int)CampaignTime.Now.ToDays + " - war posture");
+
             foreach (Kingdom kingdom in Kingdom.All)
             {
                 if (kingdom == null || kingdom.IsEliminated)
@@ -54,6 +57,8 @@ namespace CoherentWarAI.Behaviors
                 }
                 AssignPostures(kingdom, settings);
             }
+
+            WarAiLog.Flush();
         }
 
         private void AssignPostures(Kingdom kingdom, CoherentWarAISettings settings)
@@ -67,6 +72,10 @@ namespace CoherentWarAI.Behaviors
             float threatRatio = CalculateThreatRatio(kingdom);
             int aggressiveSlots = PosturePlanner.AggressiveSlotCount(
                 _candidates.Count, threatRatio, settings.AggressiveShare, settings.MinimumDefenders);
+
+            WarAiLog.Write("Posture", string.Format(
+                "{0}: {1} parties, {2:P0} of realm threatened -> {3} may attack, {4} defend",
+                kingdom.Name, _candidates.Count, threatRatio, aggressiveSlots, _candidates.Count - aggressiveSlots));
 
             // Rank by aggression score (descending) so the strongest, boldest lords
             // take the offensive slots. Selection sort keeps it allocation-free on a
@@ -93,7 +102,20 @@ namespace CoherentWarAI.Behaviors
                 }
 
                 Posture posture = PosturePlanner.DecidePosture(rank, aggressiveSlots);
-                _candidates[rank].SetPartyObjective(ToPartyObjective(posture));
+                MobileParty party = _candidates[rank];
+                party.SetPartyObjective(ToPartyObjective(posture));
+
+                // Only the lords released to attack are named individually - listing
+                // every defender each day would drown the interesting lines.
+                if (posture == Posture.Aggressive)
+                {
+                    WarAiLog.Write("Posture", string.Format(
+                        "  attacks: {0} (strength {1:F0}, valor {2}{3})",
+                        party.LeaderHero.Name,
+                        party.Party.EstimatedStrength,
+                        party.LeaderHero.GetTraitLevel(DefaultTraits.Valor),
+                        party.LeaderHero.Clan == Clan.PlayerClan ? ", your clan" : string.Empty));
+                }
             }
         }
 
