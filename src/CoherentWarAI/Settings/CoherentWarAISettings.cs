@@ -61,6 +61,12 @@ namespace CoherentWarAI.Settings
         public float GatewaySaturation = 4f;
         public int RecruitCapMax = GarrisonPlanner.DefaultRecruitCapMax;
 
+        // Marshal doctrine - offensives are led by a few appointed lords.
+        public bool EnableMarshalDoctrine = true;
+        public int SlotsPerMarshal = MarshalPlanner.DefaultSlotsPerMarshal;
+        public int MaxMarshals = MarshalPlanner.DefaultMaxMarshals;
+        public float RulerBonus = MarshalPlanner.DefaultRulerBonus;
+
         // Coordination between a realm's own lords.
         public bool EnableCoordination = true;
         public float RequiredMargin = ClaimPlanner.DefaultRequiredMargin;

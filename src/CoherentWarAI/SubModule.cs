@@ -24,13 +24,16 @@ namespace CoherentWarAI
                     + ", defensive posture: " + settings.EnableDefensivePosture
                     + ", hysteresis: " + settings.EnableCommitmentHysteresis
                     + ", garrisons: " + settings.EnableGarrisonThreatAwareness
-                    + ", route analysis: " + settings.EnableChokepointAnalysis);
+                    + ", route analysis: " + settings.EnableChokepointAnalysis
+                    + ", coordination: " + settings.EnableCoordination
+                    + ", marshal doctrine: " + settings.EnableMarshalDoctrine);
 
                 // Last-registered model wins; we extend the default and call base,
                 // so any other TargetScoreCalculatingModel already registered keeps
                 // working through the vanilla chain.
                 campaignStarter.AddModel(new CoherentTargetScoreModel());
                 campaignStarter.AddModel(new CoherentGarrisonModel());
+                campaignStarter.AddModel(new CoherentArmyManagementModel());
 
                 campaignStarter.AddBehavior(new ChokepointMapBehavior());
                 campaignStarter.AddBehavior(new WarCoordinatorBehavior());

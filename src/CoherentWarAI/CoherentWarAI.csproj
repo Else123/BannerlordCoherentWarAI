@@ -68,6 +68,8 @@
     <Compile Include="Behaviors\WarCoordinatorBehavior.cs" />
     <Compile Include="Behaviors\WarPostureBehavior.cs" />
     <Compile Include="Logic\ClaimPlanner.cs" />
+    <Compile Include="Logic\MarshalPlanner.cs" />
+    <Compile Include="Models\CoherentArmyManagementModel.cs" />
     <Compile Include="Diagnostics\WarAiLog.cs" />
     <Compile Include="Logic\ChokepointAnalyzer.cs" />
     <Compile Include="Logic\EngagementHysteresis.cs" />
