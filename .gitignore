@@ -1,0 +1,17 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+.vs/
+
+# User-specific local paths (never commit - see paths.props.user.template)
+paths.props.user
+
+# Rider / VS Code
+.idea/
+.vscode/
+
+# NuGet
+*.nupkg
+packages/
