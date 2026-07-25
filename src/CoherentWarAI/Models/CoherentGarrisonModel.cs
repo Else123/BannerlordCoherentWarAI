@@ -82,7 +82,7 @@ namespace CoherentWarAI.Models
         /// (no change) when the feature is off or the settlement has no topology to
         /// reason about.
         /// </summary>
-        private static float GetMultiplier(Settlement settlement)
+        public static float GetMultiplier(Settlement settlement)
         {
             CoherentWarAISettings settings = CoherentWarAISettings.Current;
             if (settings == null || !settings.EnableGarrisonThreatAwareness)

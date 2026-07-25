@@ -18,8 +18,6 @@ namespace CoherentWarAI.Behaviors
     /// </summary>
     public class ChokepointMapBehavior : CampaignBehaviorBase
     {
-        private static bool _dirty;
-
         /// <summary>Latest gateway scores, 0..1 per settlement. Empty until first computed.</summary>
         public static Dictionary<Settlement, float> GatewayScores { get; private set; } = new Dictionary<Settlement, float>();
 
@@ -63,15 +61,14 @@ namespace CoherentWarAI.Behaviors
 
         private void OnSettlementOwnerChanged(Settlement settlement, bool openToClaim, Hero newOwner, Hero oldOwner, Hero capturerHero, ChangeOwnerOfSettlementAction.ChangeOwnerOfSettlementDetail detail)
         {
-            // Taking a fief redraws the routes into both realms - but a front
-            // collapsing can flip several fiefs in a row, so just mark the map stale
-            // and redraw it once on the next tick rather than mid-siege.
-            _dirty = true;
+            // Taking a fief redraws the routes into both realms, but a collapsing
+            // front can flip several in a row. The daily rebuild below picks the new
+            // shape up on its own, so nothing is recomputed mid-siege; garrison sizes
+            // do not need to react within the same day.
         }
 
         private void OnDailyTick()
         {
-            _dirty = false;
             Recompute();
         }
 
@@ -156,15 +153,57 @@ namespace CoherentWarAI.Behaviors
             List<KeyValuePair<Settlement, float>> ranked = new List<KeyValuePair<Settlement, float>>(scores);
             ranked.Sort((a, b) => b.Value.CompareTo(a.Value));
 
-            WarAiLog.Section("Day " + (int)CampaignTime.Now.ToDays + " - gateways into each realm");
+            WarAiLog.Section(WarAiLog.GameDate() + " - gateways into each realm");
+            WarAiLog.Write("Gateway", "settlement                gate  garrison  faction");
+
             int shown = ranked.Count < 15 ? ranked.Count : 15;
             for (int i = 0; i < shown; i++)
             {
                 Settlement settlement = ranked[i].Key;
-                WarAiLog.Write("Gateway", string.Format("{0,-24} {1:F2}  ({2})",
-                    settlement.Name, ranked[i].Value, settlement.MapFaction?.Name));
+
+                // Show what the gate rating actually does to the garrison, so the
+                // two halves of this feature can be judged together.
+                float garrisonMultiplier = Models.CoherentGarrisonModel.GetMultiplier(settlement);
+
+                WarAiLog.Write("Gateway", string.Format("{0,-24} {1:F2}    x{2:F2}  {3}",
+                    settlement.Name, ranked[i].Value, garrisonMultiplier, settlement.MapFaction?.Name));
             }
+
+            // The player's own holdings matter more to them than the global top 15.
+            LogPlayerHoldings(scores);
             WarAiLog.Flush();
+        }
+
+        /// <summary>
+        /// Reports the player's own fiefs regardless of where they rank globally -
+        /// these are the ones whose garrisons they will actually notice.
+        /// </summary>
+        private static void LogPlayerHoldings(Dictionary<Settlement, float> scores)
+        {
+            IFaction playerFaction = Clan.PlayerClan?.MapFaction;
+            if (playerFaction == null)
+            {
+                return;
+            }
+
+            bool wroteHeading = false;
+            foreach (Settlement settlement in Settlement.All)
+            {
+                if (settlement == null || !settlement.IsFortification || settlement.MapFaction != playerFaction)
+                {
+                    continue;
+                }
+
+                if (!wroteHeading)
+                {
+                    WarAiLog.Write("Gateway", "-- your realm --");
+                    wroteHeading = true;
+                }
+
+                scores.TryGetValue(settlement, out float gate);
+                WarAiLog.Write("Gateway", string.Format("{0,-24} {1:F2}    x{2:F2}",
+                    settlement.Name, gate, Models.CoherentGarrisonModel.GetMultiplier(settlement)));
+            }
         }
 
         private static List<Settlement> CollectFortifications()

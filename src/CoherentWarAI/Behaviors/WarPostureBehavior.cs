@@ -47,7 +47,7 @@ namespace CoherentWarAI.Behaviors
                 return;
             }
 
-            WarAiLog.Section("Day " + (int)CampaignTime.Now.ToDays + " - war posture");
+            WarAiLog.Section(WarAiLog.GameDate() + " - war posture");
 
             foreach (Kingdom kingdom in Kingdom.All)
             {

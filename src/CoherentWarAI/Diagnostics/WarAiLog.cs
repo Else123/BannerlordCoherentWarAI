@@ -36,6 +36,17 @@ namespace CoherentWarAI.Diagnostics
         /// <summary>Full path of the log file, once known.</summary>
         public static string FilePath => _path;
 
+        /// <summary>
+        /// Readable in-game date. <c>CampaignTime.ToDays</c> counts from the calendar
+        /// epoch, not from the campaign start, so it reads as a five-digit number
+        /// that means nothing to a player looking at the log.
+        /// </summary>
+        public static string GameDate()
+        {
+            TaleWorlds.CampaignSystem.CampaignTime now = TaleWorlds.CampaignSystem.CampaignTime.Now;
+            return string.Format("Year {0}, {1} {2}", now.GetYear, now.GetSeasonOfYear, now.GetDayOfSeason + 1);
+        }
+
         /// <summary>Starts a fresh log for this session.</summary>
         public static void Start()
         {
