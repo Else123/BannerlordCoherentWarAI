@@ -18,6 +18,7 @@ namespace CoherentWarAI
                 // so any other TargetScoreCalculatingModel already registered keeps
                 // working through the vanilla chain.
                 campaignStarter.AddModel(new CoherentTargetScoreModel());
+                campaignStarter.AddModel(new CoherentGarrisonModel());
 
                 campaignStarter.AddBehavior(new WarPostureBehavior());
             }

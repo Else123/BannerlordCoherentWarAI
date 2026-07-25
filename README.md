@@ -27,11 +27,15 @@ overrides of the vanilla decision models:
   exploitable by stepping in and out of a settlement. Committing to a target and
   sticking with one now use different thresholds, and a fresh commitment is not
   reconsidered over momentary noise (though an outright collapse still ends it).
-- **Garrison defense (Slice C):** makes garrison strength and recruitment
-  threat- and frontline-aware, so border fiefs are actually defensible.
-- **Strategic coordination (Slice B):** a faction-level layer that stops lords
-  dogpiling one fief, concentrates force on a primary enemy, and pre-positions
-  defenders before a settlement is hit.
+- **Garrisons that reflect the map:** vanilla sizes garrisons from economics
+  alone, so the fief the enemy marches through is defended no better than one
+  deep inside the realm, and one-troop-a-day recruitment cannot refill it between
+  raids. Garrison size and recruitment now scale with how exposed a settlement
+  is - and **chokepoints**, the fiefs that both face foreign ground and shield
+  friendly ground behind them, are held hardest. Quiet interior holdings shrink
+  instead, giving those troops back to the field army.
+- **Strategic coordination (planned):** a faction-level layer that stops lords
+  dogpiling one fief and concentrates force on a primary enemy.
 
 Each slice can be toggled off, and every weight has a no-op parameter shape, so a
 disabled or partially built feature is a no-op rather than a regression (the

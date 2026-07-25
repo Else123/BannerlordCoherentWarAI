@@ -37,6 +37,18 @@ namespace CoherentWarAI.Settings
         /// </summary>
         public bool ManagePlayerClanParties = true;
 
+        // Slice C - threat- and chokepoint-aware garrisons.
+        public bool EnableGarrisonThreatAwareness = true;
+        public float InteriorBase = GarrisonPlanner.DefaultInteriorBase;
+        public float BorderBase = GarrisonPlanner.DefaultBorderBase;
+        public float GarrisonThreatGain = GarrisonPlanner.DefaultThreatGain;
+        public float GarrisonThreatCap = GarrisonPlanner.DefaultThreatCap;
+        public float PeaceCap = GarrisonPlanner.DefaultPeaceCap;
+        public float AllyWeight = 0.25f;
+        public float ChokepointGain = GarrisonPlanner.DefaultChokepointGain;
+        public float ChokepointSaturation = GarrisonPlanner.DefaultChokepointSaturation;
+        public int RecruitCapMax = GarrisonPlanner.DefaultRecruitCapMax;
+
         /// <summary>Active settings instance. Replaced by the MCM adapter later.</summary>
         public static CoherentWarAISettings Current { get; set; } = new CoherentWarAISettings();
     }
