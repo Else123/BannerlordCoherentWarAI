@@ -16,6 +16,9 @@ namespace CoherentWarAI
 
             if (game.GameType is Campaign && gameStarterObject is CampaignGameStarter campaignStarter)
             {
+                // Take the configured values before anything reads them.
+                CoherentWarAIMcmSettings.Instance?.Apply(CoherentWarAISettings.Current);
+
                 CoherentWarAISettings settings = CoherentWarAISettings.Current;
                 WarAiLog.Enabled = settings.EnableLogging;
                 WarAiLog.VerboseScoring = settings.VerboseScoreLogging;
@@ -35,6 +38,7 @@ namespace CoherentWarAI
                 campaignStarter.AddModel(new CoherentGarrisonModel());
                 campaignStarter.AddModel(new CoherentArmyManagementModel());
 
+                campaignStarter.AddBehavior(new SettingsSyncBehavior());
                 campaignStarter.AddBehavior(new ChokepointMapBehavior());
                 campaignStarter.AddBehavior(new WarCoordinatorBehavior());
                 campaignStarter.AddBehavior(new WarPostureBehavior());

@@ -88,8 +88,10 @@ namespace CoherentWarAI.Models
             // Four mild nudges compound. Defending and patrolling are scored by
             // paths we do not touch, so an over-damped attack would not merely rank
             // lower - it would lose to standing around. Floor the combination.
-            float combined = StrategicPriority.ApplyWeightFloor(
-                wOverkill * wFront * wCoord * wStrategy, settings.MinimumWeightFloor);
+            float raw = wOverkill * wFront * wCoord * wStrategy;
+            float combined = StrategicPriority.ApplyWeightFloor(raw, settings.MinimumWeightFloor);
+
+            WarAiStats.RecordScore(wOverkill, wFront, wCoord, wStrategy, combined > raw);
 
             float score = baseScore * combined;
 
@@ -157,6 +159,7 @@ namespace CoherentWarAI.Models
 
             // This is the flip-flop being prevented: vanilla just wrote the target
             // off, and we are keeping the lord on it. Worth seeing in the log.
+            WarAiStats.RecordHysteresisHold();
             WarAiLog.Write("Hysteresis", string.Format(
                 "{0} holds {1} ({2}) - vanilla would abort; ratio {3:F2}, {4} commitment, score {5:F1}",
                 mobileParty.LeaderHero?.Name, targetSettlement.Name, missionType,
@@ -201,9 +204,11 @@ namespace CoherentWarAI.Models
             if (settings.EnableHoldability && ourFaction != null)
             {
                 CountHoldabilityNeighbors(targetSettlement, ourFaction, out int wouldBeOurs, out int wouldStayForeign);
-                weight *= StrategicPriority.HoldabilityBias(
+                float holdability = StrategicPriority.HoldabilityBias(
                     wouldBeOurs, wouldStayForeign,
                     settings.ConsolidationBonus, settings.SalientPenalty);
+                WarAiStats.RecordHoldability(holdability);
+                weight *= holdability;
             }
 
             return weight;
@@ -295,6 +300,7 @@ namespace CoherentWarAI.Models
                 return baseScore;
             }
 
+            WarAiStats.RecordGatewayDefence();
             return baseScore * ClaimPlanner.GatewayDefenseBias(gateway, settings.GatewayDefenseGain);
         }
 

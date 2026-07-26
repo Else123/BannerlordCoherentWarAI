@@ -82,6 +82,7 @@ namespace CoherentWarAI.Behaviors
                 AssignPostures(kingdom, settings);
             }
 
+            WarAiStats.FlushDaily();
             WarAiLog.Flush();
         }
 
