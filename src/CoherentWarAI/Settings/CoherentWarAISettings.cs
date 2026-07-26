@@ -61,6 +61,22 @@ namespace CoherentWarAI.Settings
         public float GatewaySaturation = 4f;
         public int RecruitCapMax = GarrisonPlanner.DefaultRecruitCapMax;
 
+        // Strategic priority - which war to press, and which conquests to want.
+        public bool EnableEnemyFocus = true;
+        public float PrimaryEnemyBoost = StrategicPriority.DefaultPrimaryEnemyBoost;
+        public float SecondaryEnemyDamp = StrategicPriority.DefaultSecondaryEnemyDamp;
+        public bool EnableHoldability = true;
+        public float ConsolidationBonus = StrategicPriority.DefaultConsolidationBonus;
+        public float SalientPenalty = StrategicPriority.DefaultSalientPenalty;
+
+        /// <summary>
+        /// Least this mod may reduce a vanilla target score to, however many weights
+        /// stack against it. Attacks compete with defending and patrolling, which are
+        /// scored by paths we do not touch, so an over-damped attack would lose to
+        /// standing around rather than merely rank lower.
+        /// </summary>
+        public float MinimumWeightFloor = 0.25f;
+
         // Marshal doctrine - offensives are led by a few appointed lords.
         public bool EnableMarshalDoctrine = true;
         public int SlotsPerMarshal = MarshalPlanner.DefaultSlotsPerMarshal;

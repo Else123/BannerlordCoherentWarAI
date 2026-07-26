@@ -28,10 +28,111 @@ namespace CoherentWarAI.Behaviors
         private static Dictionary<Settlement, Dictionary<IFaction, float>> _committed
             = new Dictionary<Settlement, Dictionary<IFaction, float>>();
 
+        private static Dictionary<IFaction, IFaction> _primaryEnemies = new Dictionary<IFaction, IFaction>();
+
         public override void RegisterEvents()
         {
             CampaignEvents.HourlyTickEvent.AddNonSerializedListener(this, Recompute);
+            CampaignEvents.DailyTickEvent.AddNonSerializedListener(this, ChoosePrimaryEnemies);
             CampaignEvents.OnSessionLaunchedEvent.AddNonSerializedListener(this, OnSessionLaunched);
+        }
+
+        /// <summary>
+        /// Whether this is the enemy the realm has decided to finish first. A
+        /// kingdom at war on three fronts otherwise dribbles a party at each and
+        /// concludes none of them.
+        /// </summary>
+        public static bool IsPrimaryEnemy(IFaction ourFaction, IFaction targetFaction)
+        {
+            if (ourFaction == null || targetFaction == null)
+            {
+                return false;
+            }
+            return _primaryEnemies.TryGetValue(ourFaction, out IFaction primary) && primary == targetFaction;
+        }
+
+        /// <summary>
+        /// Picks one war per realm to press. The choice is where our territory
+        /// actually meets theirs: the front with the most contact is the one that
+        /// can be pushed, and the one that hurts most if left alone.
+        /// </summary>
+        private void ChoosePrimaryEnemies()
+        {
+            CoherentWarAISettings settings = CoherentWarAISettings.Current;
+            if (settings == null || !settings.EnableEnemyFocus)
+            {
+                if (_primaryEnemies.Count > 0)
+                {
+                    _primaryEnemies = new Dictionary<IFaction, IFaction>();
+                }
+                return;
+            }
+
+            Dictionary<IFaction, IFaction> fresh = new Dictionary<IFaction, IFaction>();
+
+            foreach (Kingdom kingdom in Kingdom.All)
+            {
+                if (kingdom == null || kingdom.IsEliminated || kingdom.FactionsAtWarWith.Count == 0)
+                {
+                    continue;
+                }
+
+                IFaction best = null;
+                int bestContact = -1;
+
+                for (int i = 0; i < kingdom.FactionsAtWarWith.Count; i++)
+                {
+                    IFaction enemy = kingdom.FactionsAtWarWith[i];
+                    if (enemy == null)
+                    {
+                        continue;
+                    }
+
+                    // Starting below zero means a realm whose wars share no land
+                    // border at all - fought purely at sea, or by a landless clan -
+                    // still names one. Leaving it unset would mark every one of its
+                    // wars secondary, damping a kingdom's only war for lack of a
+                    // rival to compare it against.
+                    int contact = CountSharedBorders(kingdom, enemy);
+                    if (contact > bestContact)
+                    {
+                        bestContact = contact;
+                        best = enemy;
+                    }
+                }
+
+                if (best != null)
+                {
+                    fresh[kingdom] = best;
+                    WarAiLog.Write("Focus", string.Format("{0} concentrates on {1} ({2} shared borders)",
+                        kingdom.Name, best.Name, bestContact));
+                }
+            }
+
+            _primaryEnemies = fresh;
+        }
+
+        /// <summary>Fortifications of ours that directly adjoin theirs.</summary>
+        private static int CountSharedBorders(IFaction ours, IFaction theirs)
+        {
+            int contact = 0;
+            foreach (Town fief in ours.Fiefs)
+            {
+                Settlement settlement = fief?.Settlement;
+                if (settlement?.Town == null)
+                {
+                    continue;
+                }
+
+                foreach (Settlement neighbor in settlement.Town.GetNeighborFortifications(MobileParty.NavigationType.All))
+                {
+                    if (neighbor?.MapFaction == theirs)
+                    {
+                        contact++;
+                    }
+                }
+            }
+            return contact;
         }
 
         /// <summary>Derived from live state; nothing to save.</summary>
@@ -42,6 +143,7 @@ namespace CoherentWarAI.Behaviors
         private void OnSessionLaunched(CampaignGameStarter starter)
         {
             Recompute();
+            ChoosePrimaryEnemies();
         }
 
         /// <summary>

@@ -81,7 +81,17 @@ namespace CoherentWarAI.Models
                 wCoord = ClaimPlanner.SaturationBias(committed, required, settings.SaturationSuppression, settings.NeglectBonus);
             }
 
-            float score = baseScore * wOverkill * wFront * wCoord;
+            // Which war to press, and whether this conquest would round off our
+            // border or stick out into theirs.
+            float wStrategy = StrategicWeight(targetSettlement, mobileParty, ownedByUs, notOwnedByTarget, settings);
+
+            // Four mild nudges compound. Defending and patrolling are scored by
+            // paths we do not touch, so an over-damped attack would not merely rank
+            // lower - it would lose to standing around. Floor the combination.
+            float combined = StrategicPriority.ApplyWeightFloor(
+                wOverkill * wFront * wCoord * wStrategy, settings.MinimumWeightFloor);
+
+            float score = baseScore * combined;
 
             // Off by default: this runs hundreds of times per game hour.
             if (WarAiLog.VerboseScoring)
@@ -153,6 +163,95 @@ namespace CoherentWarAI.Models
                 ratio, isFresh ? "fresh" : "matured", held));
 
             return held;
+        }
+
+        /// <summary>
+        /// Combines the realm-level judgements about a target: which war it belongs
+        /// to, and what taking it would do to our border.
+        /// </summary>
+        private static float StrategicWeight(Settlement targetSettlement, MobileParty mobileParty, int ownedByUs, int notOwnedByTarget, CoherentWarAISettings settings)
+        {
+            float weight = 1f;
+            IFaction ourFaction = mobileParty.MapFaction;
+            IFaction targetFaction = targetSettlement.MapFaction;
+
+            if (settings.EnableEnemyFocus && ourFaction != null && targetFaction != null)
+            {
+                // Vanilla records a per-war priority but only ever applies it when
+                // the party's faction leader is the player, leaving AI realms with
+                // no notion of a prioritised war. This guard is exactly vanilla's
+                // own gate, so the player's kingdom keeps vanilla behaviour and the
+                // term is never counted twice.
+                int behaviorPriority = 0;
+                if (ourFaction.Leader != Hero.MainHero)
+                {
+                    StanceLink stance = ourFaction.GetStanceWith(targetFaction);
+                    if (stance != null)
+                    {
+                        behaviorPriority = stance.BehaviorPriority;
+                    }
+                }
+
+                weight *= StrategicPriority.CombinedWarFocus(
+                    behaviorPriority,
+                    WarCoordinatorBehavior.IsPrimaryEnemy(ourFaction, targetFaction),
+                    settings.PrimaryEnemyBoost, settings.SecondaryEnemyDamp);
+            }
+
+            if (settings.EnableHoldability && ourFaction != null)
+            {
+                CountHoldabilityNeighbors(targetSettlement, ourFaction, out int wouldBeOurs, out int wouldStayForeign);
+                weight *= StrategicPriority.HoldabilityBias(
+                    wouldBeOurs, wouldStayForeign,
+                    settings.ConsolidationBonus, settings.SalientPenalty);
+            }
+
+            return weight;
+        }
+
+        /// <summary>
+        /// Who would surround this settlement once we held it.
+        ///
+        /// Deliberately a separate count from the front-coherence one: that ignores
+        /// neighbours belonging to the target's own faction, because they are not
+        /// contested ground. For holdability they are the whole point - a fief deep
+        /// inside enemy land, ringed by that same enemy's castles, is the textbook
+        /// salient, and the front-coherence count sees it as having no neighbours at
+        /// all. Here anything not ours would stay foreign.
+        ///
+        /// Neighbours belonging to factions we are at peace with are not counted as
+        /// hostile; a quiet neighbour is not a threatened border.
+        /// </summary>
+        private static void CountHoldabilityNeighbors(Settlement targetSettlement, IFaction ourFaction, out int wouldBeOurs, out int wouldStayForeign)
+        {
+            wouldBeOurs = 0;
+            wouldStayForeign = 0;
+
+            Town town = targetSettlement.IsVillage
+                ? targetSettlement.Village?.Bound?.Town
+                : targetSettlement.Town;
+            if (town == null)
+            {
+                return;
+            }
+
+            foreach (Settlement neighbor in town.GetNeighborFortifications(MobileParty.NavigationType.All))
+            {
+                IFaction neighborFaction = neighbor?.MapFaction;
+                if (neighborFaction == null)
+                {
+                    continue;
+                }
+
+                if (neighborFaction == ourFaction)
+                {
+                    wouldBeOurs++;
+                }
+                else if (neighborFaction.IsAtWarWith(ourFaction))
+                {
+                    wouldStayForeign++;
+                }
+            }
         }
 
         /// <summary>
