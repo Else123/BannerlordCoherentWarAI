@@ -62,6 +62,12 @@ namespace CoherentWarAI.Behaviors
         {
             CoherentWarAISettings settings = CoherentWarAISettings.Current;
 
+            // Diagnostics are their own feature with their own switch: the counters
+            // are fed by target scoring, which runs regardless of what happens
+            // below, so they must be reported and reset even when nothing here does.
+            WarAiStats.FlushDaily();
+            WarAiLog.Flush();
+
             // Marshal bookkeeping must not depend on the posture toggle: the army
             // model vetoes non-marshals, so an unappointed realm could never raise
             // an army again. Either feature keeps this running.
@@ -82,7 +88,6 @@ namespace CoherentWarAI.Behaviors
                 AssignPostures(kingdom, settings);
             }
 
-            WarAiStats.FlushDaily();
             WarAiLog.Flush();
         }
 

@@ -37,8 +37,8 @@ namespace CoherentWarAI.Settings
         [SettingPropertyGroup(DefenceGroup, GroupOrder = 0)]
         public bool EnableDefensivePosture { get; set; } = true;
 
-        [SettingPropertyFloatingInteger("Share allowed to attack", 0f, 1f, "0%", Order = 1, RequireRestart = false,
-            HintText = "Fraction of a realm's lords released for offence when nothing is threatened. Shrinks automatically as more of the realm comes under threat.")]
+        [SettingPropertyFloatingInteger("Share allowed to attack", 0.05f, 1f, "0%", Order = 1, RequireRestart = false,
+            HintText = "Fraction of a realm's lords released for offence when nothing is threatened. Shrinks automatically as more of the realm comes under threat. Cannot be set to zero: that would freeze every AI offensive in the game permanently.")]
         [SettingPropertyGroup(DefenceGroup, GroupOrder = 0)]
         public float AggressiveShare { get; set; } = 0.34f;
 
@@ -84,8 +84,8 @@ namespace CoherentWarAI.Settings
         [SettingPropertyGroup(TargetGroup, GroupOrder = 1)]
         public float FrontGain { get; set; } = 0.9f;
 
-        [SettingPropertyFloatingInteger("Minimum score floor", 0f, 1f, "0.00", Order = 5, RequireRestart = false,
-            HintText = "Least this mod may reduce a vanilla score to, however many weights stack. Attacks compete with defending and patrolling, so an over-damped attack would lose to standing around.")]
+        [SettingPropertyFloatingInteger("Minimum score floor", 0.05f, 1f, "0.00", Order = 5, RequireRestart = false,
+            HintText = "Least this mod may reduce a vanilla score to, however many weights stack. Attacks compete with defending and patrolling, so an over-damped attack would lose to standing around. Cannot be set to zero - that is the guarantee this setting exists to provide.")]
         [SettingPropertyGroup(TargetGroup, GroupOrder = 1)]
         public float MinimumWeightFloor { get; set; } = 0.25f;
 

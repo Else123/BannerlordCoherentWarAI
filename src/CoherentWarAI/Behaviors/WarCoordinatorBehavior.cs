@@ -124,9 +124,9 @@ namespace CoherentWarAI.Behaviors
                     continue;
                 }
 
-                foreach (Settlement neighbor in settlement.Town.GetNeighborFortifications(MobileParty.NavigationType.All))
+                foreach (Settlement neighbor in Models.SettlementNeighbors.Of(settlement))
                 {
-                    if (neighbor?.MapFaction == theirs)
+                    if (neighbor.MapFaction == theirs)
                     {
                         contact++;
                     }

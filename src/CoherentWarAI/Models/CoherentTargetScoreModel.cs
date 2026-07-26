@@ -51,20 +51,21 @@ namespace CoherentWarAI.Models
                 return baseScore;
             }
 
-            if (!settings.EnableTargetDeGreed)
+            // Each weight is gated by its own setting. They must not be nested
+            // inside one another: the settings page presents them as independent
+            // switches, so turning one off has to leave the others working.
+            bool needDefenderEstimate = settings.EnableTargetDeGreed || settings.EnableCoordination;
+            float defenderStrength = needDefenderEstimate ? EstimateDefenderStrength(targetSettlement) : 0f;
+
+            float wOverkill = 1f;
+            float wFront = 1f;
+            if (settings.EnableTargetDeGreed)
             {
-                if (settings.EnableCommitmentHysteresis)
-                {
-                    _commitments.Remember(mobileParty, targetSettlement, missionType, baseScore);
-                }
-                return baseScore;
+                wOverkill = TargetWeights.Overkill(ourStrength, defenderStrength, settings.OverkillOnset, settings.OverkillMinFactor, settings.OverkillSpan);
+
+                CountFrontNeighbors(targetSettlement, mobileParty, out int ownedByUs, out int notOwnedByTarget);
+                wFront = TargetWeights.FrontCoherence(ownedByUs, notOwnedByTarget, settings.FrontFloor, settings.FrontGain);
             }
-
-            float defenderStrength = EstimateDefenderStrength(targetSettlement);
-            float wOverkill = TargetWeights.Overkill(ourStrength, defenderStrength, settings.OverkillOnset, settings.OverkillMinFactor, settings.OverkillSpan);
-
-            CountFrontNeighbors(targetSettlement, mobileParty, out int ownedByUs, out int notOwnedByTarget);
-            float wFront = TargetWeights.FrontCoherence(ownedByUs, notOwnedByTarget, settings.FrontFloor, settings.FrontGain);
 
             // What the rest of our realm is already sending here. Vanilla has no
             // such term at all, which is why every lord picks the same fief.
@@ -83,7 +84,7 @@ namespace CoherentWarAI.Models
 
             // Which war to press, and whether this conquest would round off our
             // border or stick out into theirs.
-            float wStrategy = StrategicWeight(targetSettlement, mobileParty, ownedByUs, notOwnedByTarget, settings);
+            float wStrategy = StrategicWeight(targetSettlement, mobileParty, settings);
 
             // Four mild nudges compound. Defending and patrolling are scored by
             // paths we do not touch, so an over-damped attack would not merely rank
@@ -99,9 +100,9 @@ namespace CoherentWarAI.Models
             if (WarAiLog.VerboseScoring)
             {
                 WarAiLog.Write("Score", string.Format(
-                    "{0} -> {1} ({2}): vanilla {3:F1} x overkill {4:F2} x front {5:F2} x coord {6:F2} = {7:F1}",
+                    "{0} -> {1} ({2}): vanilla {3:F1} x overkill {4:F2} x front {5:F2} x coord {6:F2} x strategy {7:F2} = {8:F1}",
                     mobileParty.LeaderHero?.Name, targetSettlement.Name, missionType,
-                    baseScore, wOverkill, wFront, wCoord, score));
+                    baseScore, wOverkill, wFront, wCoord, wStrategy, score));
             }
 
             // Remember this assessment while the target is still clearly ratable,
@@ -172,7 +173,7 @@ namespace CoherentWarAI.Models
         /// Combines the realm-level judgements about a target: which war it belongs
         /// to, and what taking it would do to our border.
         /// </summary>
-        private static float StrategicWeight(Settlement targetSettlement, MobileParty mobileParty, int ownedByUs, int notOwnedByTarget, CoherentWarAISettings settings)
+        private static float StrategicWeight(Settlement targetSettlement, MobileParty mobileParty, CoherentWarAISettings settings)
         {
             float weight = 1f;
             IFaction ourFaction = mobileParty.MapFaction;
@@ -232,17 +233,9 @@ namespace CoherentWarAI.Models
             wouldBeOurs = 0;
             wouldStayForeign = 0;
 
-            Town town = targetSettlement.IsVillage
-                ? targetSettlement.Village?.Bound?.Town
-                : targetSettlement.Town;
-            if (town == null)
+            foreach (Settlement neighbor in SettlementNeighbors.Of(targetSettlement))
             {
-                return;
-            }
-
-            foreach (Settlement neighbor in town.GetNeighborFortifications(MobileParty.NavigationType.All))
-            {
-                IFaction neighborFaction = neighbor?.MapFaction;
+                IFaction neighborFaction = neighbor.MapFaction;
                 if (neighborFaction == null)
                 {
                     continue;
@@ -294,7 +287,20 @@ namespace CoherentWarAI.Models
                 return baseScore;
             }
 
-            float gateway = ChokepointMapBehavior.GetGatewayScore(settlement);
+            // Same fallback the garrison model uses: when the route analysis is
+            // switched off, fall back to counting neighbours rather than silently
+            // degrading this feature to nothing behind an unrelated setting.
+            float gateway;
+            if (ChokepointMapBehavior.HasComputedScores)
+            {
+                gateway = ChokepointMapBehavior.GetGatewayScore(settlement);
+            }
+            else
+            {
+                CountFrontNeighbors(settlement, mobileParty, out int ownedByUs, out int notOwnedByUs);
+                gateway = GarrisonPlanner.ChokepointScore(notOwnedByUs, ownedByUs, settings.ChokepointSaturation);
+            }
+
             if (gateway <= 0f)
             {
                 return baseScore;
@@ -346,23 +352,16 @@ namespace CoherentWarAI.Models
             ownedByUs = 0;
             notOwnedByTarget = 0;
 
-            Town town = targetSettlement.IsVillage
-                ? targetSettlement.Village?.Bound?.Town
-                : targetSettlement.Town;
-            if (town == null)
-            {
-                return;
-            }
-
             IFaction targetFaction = targetSettlement.MapFaction;
             IFaction ourFaction = mobileParty.MapFaction;
 
-            foreach (Settlement neighbor in town.GetNeighborFortifications(MobileParty.NavigationType.All))
+            foreach (Settlement neighbor in SettlementNeighbors.Of(targetSettlement))
             {
-                if (neighbor.MapFaction != targetFaction)
+                IFaction neighborFaction = neighbor.MapFaction;
+                if (neighborFaction != targetFaction)
                 {
                     notOwnedByTarget++;
-                    if (neighbor.MapFaction == ourFaction)
+                    if (neighborFaction == ourFaction)
                     {
                         ownedByUs++;
                     }

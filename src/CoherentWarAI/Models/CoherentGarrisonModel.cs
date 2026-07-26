@@ -146,9 +146,9 @@ namespace CoherentWarAI.Models
             friendlyNeighbors = 0;
             hostileNeighbors = 0;
 
-            foreach (Settlement neighbor in settlement.Town.GetNeighborFortifications(MobileParty.NavigationType.All))
+            foreach (Settlement neighbor in SettlementNeighbors.Of(settlement))
             {
-                IFaction neighborFaction = neighbor?.MapFaction;
+                IFaction neighborFaction = neighbor.MapFaction;
                 if (neighborFaction == null)
                 {
                     continue;

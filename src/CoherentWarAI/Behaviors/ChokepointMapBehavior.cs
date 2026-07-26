@@ -56,6 +56,9 @@ namespace CoherentWarAI.Behaviors
 
         private void OnSessionLaunched(CampaignGameStarter starter)
         {
+            // Loading a different campaign in the same process would otherwise leave
+            // settlements of the previous one in the adjacency cache.
+            Models.SettlementNeighbors.Clear();
             Recompute();
         }
 
@@ -225,9 +228,9 @@ namespace CoherentWarAI.Behaviors
             for (int i = 0; i < nodes.Count; i++)
             {
                 List<int> neighbors = new List<int>();
-                foreach (Settlement neighbor in nodes[i].Town.GetNeighborFortifications(MobileParty.NavigationType.All))
+                foreach (Settlement neighbor in Models.SettlementNeighbors.Of(nodes[i]))
                 {
-                    if (neighbor != null && index.TryGetValue(neighbor, out int neighborIndex))
+                    if (index.TryGetValue(neighbor, out int neighborIndex))
                     {
                         neighbors.Add(neighborIndex);
                     }
