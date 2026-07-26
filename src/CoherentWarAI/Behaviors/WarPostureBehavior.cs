@@ -104,8 +104,9 @@ namespace CoherentWarAI.Behaviors
                 _candidates.Count, threatRatio, settings.AggressiveShare, settings.MinimumDefenders);
 
             WarAiLog.Write("Posture", string.Format(
-                "{0}: {1} parties, {2:P0} of realm threatened -> {3} may attack, {4} defend",
-                kingdom.Name, _candidates.Count, threatRatio, aggressiveSlots, _candidates.Count - aggressiveSlots));
+                "{0}: {1} parties, {2} war(s), {3:P0} of realm threatened -> {4} may attack, {5} defend",
+                kingdom.Name, _candidates.Count, kingdom.FactionsAtWarWith.Count,
+                threatRatio, aggressiveSlots, _candidates.Count - aggressiveSlots));
 
             List<MobileParty> attackers = new List<MobileParty>();
 
@@ -257,6 +258,13 @@ namespace CoherentWarAI.Behaviors
         /// </summary>
         private static float CalculateThreatRatio(Kingdom kingdom)
         {
+            // Vanilla's threat intensity counts any hostile party near a settlement -
+            // and it counts bandits among them. A realm at peace with a bandit
+            // problem would otherwise read as under attack and pull its lords home
+            // to chase raiders, which is what garrisons are for. Only a realm
+            // actually at war can be threatened in the sense meant here.
+            bool atWar = kingdom.FactionsAtWarWith.Count > 0;
+
             int total = 0;
             int threatened = 0;
 
@@ -268,9 +276,20 @@ namespace CoherentWarAI.Behaviors
                 }
                 total++;
 
+                if (settlement.IsUnderSiege)
+                {
+                    threatened++;
+                    continue;
+                }
+
+                if (!atWar)
+                {
+                    continue;
+                }
+
                 float threat = settlement.NearbyLandThreatIntensity + settlement.NearbyNavalThreatIntensity;
                 float ally = settlement.NearbyLandAllyIntensity;
-                if (settlement.IsUnderSiege || threat > ally)
+                if (threat > ally)
                 {
                     threatened++;
                 }
