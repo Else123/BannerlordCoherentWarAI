@@ -27,6 +27,21 @@ namespace CoherentWarAI.Behaviors
         private void OnSessionLaunched(CampaignGameStarter starter)
         {
             Sync();
+
+            // The startup line is written before the settings page is necessarily
+            // available, so it can report defaults rather than what is configured.
+            // Restate it once the real values are in.
+            CoherentWarAISettings settings = CoherentWarAISettings.Current;
+            WarAiLog.Write("Init", "Settings in effect. Target de-greed: " + settings.EnableTargetDeGreed
+                + ", defensive posture: " + settings.EnableDefensivePosture
+                + ", hysteresis: " + settings.EnableCommitmentHysteresis
+                + ", garrisons: " + settings.EnableGarrisonThreatAwareness
+                + ", route analysis: " + settings.EnableChokepointAnalysis
+                + ", coordination: " + settings.EnableCoordination
+                + ", marshal doctrine: " + settings.EnableMarshalDoctrine
+                + ", enemy focus: " + settings.EnableEnemyFocus
+                + ", holdability: " + settings.EnableHoldability);
+            WarAiLog.Flush();
         }
 
         private void Sync()

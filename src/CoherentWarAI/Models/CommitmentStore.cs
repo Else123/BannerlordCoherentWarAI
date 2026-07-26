@@ -90,8 +90,13 @@ namespace CoherentWarAI.Models
             List<MobileParty> stale = new List<MobileParty>();
             foreach (KeyValuePair<MobileParty, Entry> pair in _entries)
             {
+                // Read from the live settings, not the default: the retention window
+                // is configurable, and pruning must follow whatever it is set to.
+                float decayHours = Settings.CoherentWarAISettings.Current?.RetentionDecayHours
+                    ?? Logic.EngagementHysteresis.DefaultRetentionDecayHours;
+
                 if (pair.Key == null || !pair.Key.IsActive
-                    || pair.Value.LastSeen.ElapsedHoursUntilNow > Logic.EngagementHysteresis.DefaultRetentionDecayHours * 2f)
+                    || pair.Value.LastSeen.ElapsedHoursUntilNow > decayHours * 2f)
                 {
                     stale.Add(pair.Key);
                 }

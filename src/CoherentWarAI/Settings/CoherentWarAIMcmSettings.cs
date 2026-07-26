@@ -178,9 +178,14 @@ namespace CoherentWarAI.Settings
         public bool EnableHoldability { get; set; } = true;
 
         [SettingPropertyFloatingInteger("Salient penalty", 0f, 0.9f, "0.00", Order = 4, RequireRestart = false,
-            HintText = "How far a conquest ringed by enemy holdings is discouraged. A nudge, never a veto.")]
+            HintText = "How far a conquest ringed by enemy holdings is discouraged. Only genuinely lopsided cases count - an ordinary border objective is left alone. A nudge, never a veto.")]
         [SettingPropertyGroup(StrategyGroup, GroupOrder = 5)]
         public float SalientPenalty { get; set; } = 0.4f;
+
+        [SettingPropertyFloatingInteger("Consolidation bonus", 0f, 1f, "0.00", Order = 5, RequireRestart = false,
+            HintText = "Extra weight for taking a fief whose neighbours are already ours, rounding off the border.")]
+        [SettingPropertyGroup(StrategyGroup, GroupOrder = 5)]
+        public float ConsolidationBonus { get; set; } = 0.35f;
 
         // --- 7. Garrisons and gateways ---------------------------------------
 
@@ -271,6 +276,7 @@ namespace CoherentWarAI.Settings
             target.SecondaryEnemyDamp = SecondaryEnemyDamp;
             target.EnableHoldability = EnableHoldability;
             target.SalientPenalty = SalientPenalty;
+            target.ConsolidationBonus = ConsolidationBonus;
 
             target.EnableGarrisonThreatAwareness = EnableGarrisonThreatAwareness;
             target.InteriorBase = InteriorBase;

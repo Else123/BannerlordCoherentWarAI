@@ -17,7 +17,6 @@ namespace CoherentWarAI.Diagnostics
     public static class WarAiLog
     {
         private const int FlushThreshold = 400;
-        private const int MaxBufferedLines = 5000;
 
         private static readonly List<string> Buffer = new List<string>();
         private static string _path;
@@ -95,15 +94,12 @@ namespace CoherentWarAI.Diagnostics
 
             Buffer.Add("[" + category + "] " + message);
 
+            // Growth is bounded here: the buffer is written out and cleared as soon
+            // as it reaches the threshold, and a failed write disables logging
+            // outright rather than letting lines accumulate.
             if (Buffer.Count >= FlushThreshold)
             {
                 Flush();
-            }
-            else if (Buffer.Count > MaxBufferedLines)
-            {
-                // Something is producing far more than expected; drop the oldest
-                // rather than grow unbounded.
-                Buffer.RemoveRange(0, Buffer.Count - MaxBufferedLines);
             }
         }
 
