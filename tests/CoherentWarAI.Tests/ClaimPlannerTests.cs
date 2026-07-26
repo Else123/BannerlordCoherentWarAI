@@ -19,7 +19,7 @@ namespace CoherentWarAI.Tests
 
         // suppression=0.3, neglectBonus=1.25
         [Theory]
-        [InlineData(0f, 1000f, 1.25f)]      // nobody going -> nudge someone there
+        [InlineData(0f, 1000f, 1f)]         // nobody going -> neutral (see DefaultNeglectBonus)
         [InlineData(500f, 1000f, 1f)]       // under-committed -> reinforcing is fine
         [InlineData(1000f, 1000f, 1f)]      // exactly enough -> still neutral
         [InlineData(1500f, 1000f, 0.65f)]   // 50% over -> halfway to the floor
@@ -38,8 +38,8 @@ namespace CoherentWarAI.Tests
         [Fact]
         public void SaturationBias_ReproducesTheDogpileBeingPrevented()
         {
-            // A weak fief needing 1000: the first lord is welcome...
-            Assert.Equal(1.25f, ClaimPlanner.SaturationBias(0f, 1000f,
+            // A weak fief needing 1000: the first lord is unimpeded...
+            Assert.Equal(1f, ClaimPlanner.SaturationBias(0f, 1000f,
                 ClaimPlanner.DefaultSaturationSuppression, ClaimPlanner.DefaultNeglectBonus), 4);
 
             // ...a second still helps if the first cannot manage alone...

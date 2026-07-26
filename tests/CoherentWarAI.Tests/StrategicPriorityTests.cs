@@ -25,15 +25,18 @@ namespace CoherentWarAI.Tests
             Assert.True(secondary > 0.5f, $"secondary war damped too hard: {secondary}");
         }
 
-        // consolidationBonus=0.35, salientPenalty=0.4
+        // consolidationBonus=0.35, salientPenalty=0.4, neutral band +/-0.5.
+        // A conquest target is enemy ground by definition, so only lopsided cases
+        // count - otherwise nearly every target is marked a salient.
         [Theory]
         [InlineData(4, 0, 1.35f)]    // fully enclosed by our own -> rounds off the border
-        [InlineData(3, 1, 1.175f)]
+        [InlineData(3, 1, 1f)]       // balance 0.5 -> edge of the band, still ordinary
         [InlineData(2, 2, 1f)]       // balanced -> neutral
-        [InlineData(1, 3, 0.8f)]
-        [InlineData(0, 4, 0.6f)]     // ringed by enemies -> a salient, discouraged
+        [InlineData(1, 3, 1f)]       // ordinary border objective, NOT a salient
+        [InlineData(0, 4, 0.6f)]     // ringed by enemies -> a real salient
+        [InlineData(1, 9, 0.76f)]    // strongly lopsided -> partial penalty
         [InlineData(0, 0, 1f)]       // isolated, nothing to say
-        public void HoldabilityBias_PrefersConquestsThatRoundOffTheBorder(
+        public void HoldabilityBias_OnlyFlagsGenuinelyLopsidedConquests(
             int friendlyNeighbors, int hostileNeighbors, float expected)
         {
             Assert.Equal(expected, StrategicPriority.HoldabilityBias(
@@ -54,18 +57,29 @@ namespace CoherentWarAI.Tests
         [Fact]
         public void RoundingOffTheBorderBeatsJuttingOutIntoEnemyGround()
         {
-            float consolidating = StrategicPriority.HoldabilityBias(4, 1,
+            float consolidating = StrategicPriority.HoldabilityBias(5, 0,
                 StrategicPriority.DefaultConsolidationBonus, StrategicPriority.DefaultSalientPenalty);
-            float salient = StrategicPriority.HoldabilityBias(1, 4,
+            float salient = StrategicPriority.HoldabilityBias(0, 5,
                 StrategicPriority.DefaultConsolidationBonus, StrategicPriority.DefaultSalientPenalty);
             Assert.True(consolidating > salient * 1.4f, $"{consolidating} vs {salient}");
         }
 
+        [Fact]
+        public void TheTypicalConquestTargetIsNotTreatedAsASalient()
+        {
+            // From a real playtest: the penalty was firing on 97% of all targets,
+            // which drags every score down without distinguishing between them.
+            Assert.Equal(1f, StrategicPriority.HoldabilityBias(1, 2,
+                StrategicPriority.DefaultConsolidationBonus, StrategicPriority.DefaultSalientPenalty), 4);
+            Assert.Equal(1f, StrategicPriority.HoldabilityBias(2, 3,
+                StrategicPriority.DefaultConsolidationBonus, StrategicPriority.DefaultSalientPenalty), 4);
+        }
+
         [Theory]
         [InlineData(2, false, 1.25f)]   // engine says prioritised -> wins over our reading
-        [InlineData(1, true, 0.8f)]     // engine says secondary -> wins even against our pick
+        [InlineData(1, true, 0.9f)]     // engine says secondary -> wins even against our pick
         [InlineData(0, true, 1.25f)]    // engine silent -> our heuristic speaks
-        [InlineData(0, false, 0.8f)]
+        [InlineData(0, false, 0.9f)]
         public void CombinedWarFocus_ChoosesBetweenTheTwoOpinionsInsteadOfStackingThem(
             int behaviorPriority, bool isPrimary, float expected)
         {

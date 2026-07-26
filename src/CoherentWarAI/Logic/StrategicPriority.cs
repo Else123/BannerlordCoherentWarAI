@@ -17,8 +17,13 @@ namespace CoherentWarAI.Logic
         /// <summary>Preference for fiefs of the enemy we have chosen to finish first.</summary>
         public const float DefaultPrimaryEnemyBoost = 1.25f;
 
-        /// <summary>How far other wars are set aside - damped, never abandoned.</summary>
-        public const float DefaultSecondaryEnemyDamp = 0.8f;
+        /// <summary>
+        /// How far other wars are set aside - damped, never abandoned. Kept mild:
+        /// most enemies are secondary at any moment, so this applies to the majority
+        /// of targets and compounds with every other weight. What separates the
+        /// priority war is the ratio to the boost, not the absolute damping.
+        /// </summary>
+        public const float DefaultSecondaryEnemyDamp = 0.9f;
 
         /// <summary>Reward for a conquest that rounds off the border.</summary>
         public const float DefaultConsolidationBonus = 0.35f;
@@ -59,12 +64,31 @@ namespace CoherentWarAI.Logic
             // -1 (fully surrounded by enemies) .. +1 (fully enclosed by our own)
             float balance = (float)(friendlyNeighbors - hostileNeighbors) / total;
 
+            // A conquest target is enemy ground, so of course it has enemy
+            // neighbours - judging that alone marked nearly every target a salient,
+            // which drags all scores down without telling them apart. Only the
+            // genuinely lopsided cases count: a fief with some friendly ground near
+            // it is an ordinary border objective, not a salient.
+            if (balance > -NeutralBand && balance < NeutralBand)
+            {
+                return 1f;
+            }
+
+            // Rescale so the effect ramps from the edge of the band, not from zero.
+            float excess = (Math.Abs(balance) - NeutralBand) / (1f - NeutralBand);
+
             float factor = balance >= 0f
-                ? 1f + Math.Max(0f, consolidationBonus) * balance
-                : 1f + Math.Max(0f, salientPenalty) * balance;
+                ? 1f + Math.Max(0f, consolidationBonus) * excess
+                : 1f - Math.Max(0f, salientPenalty) * excess;
 
             return factor < 0f ? 0f : factor;
         }
+
+        /// <summary>
+        /// How lopsided a settlement's surroundings must be before it counts as
+        /// either a salient or a consolidation rather than an ordinary objective.
+        /// </summary>
+        private const float NeutralBand = 0.5f;
 
         /// <summary>
         /// Translates the vanilla per-war priority (a stance field the engine stores

@@ -105,9 +105,14 @@ namespace CoherentWarAI.Models
                     baseScore, wOverkill, wFront, wCoord, wStrategy, score));
             }
 
-            // Remember this assessment while the target is still clearly ratable,
-            // so a later dip does not erase what this lord already decided.
-            if (settings.EnableCommitmentHysteresis)
+            // Remember the assessment of the target this lord is actually pursuing.
+            //
+            // Only that one: a party rates dozens of candidates every tick, and the
+            // store holds one entry per party, so remembering every candidate meant
+            // the entry was overwritten constantly and almost never described the
+            // target that later dropped to zero. That is why the hysteresis never
+            // fired in a full playtest despite being enabled throughout.
+            if (settings.EnableCommitmentHysteresis && IsPursuing(mobileParty, targetSettlement))
             {
                 _commitments.Remember(mobileParty, targetSettlement, missionType, score);
             }
@@ -213,6 +218,16 @@ namespace CoherentWarAI.Models
             }
 
             return weight;
+        }
+
+        /// <summary>
+        /// Whether this lord is already heading for this settlement, as opposed to
+        /// merely rating it among the dozens he considers each tick.
+        /// </summary>
+        private static bool IsPursuing(MobileParty mobileParty, Settlement targetSettlement)
+        {
+            return mobileParty.BesiegedSettlement == targetSettlement
+                || mobileParty.TargetSettlement == targetSettlement;
         }
 
         /// <summary>

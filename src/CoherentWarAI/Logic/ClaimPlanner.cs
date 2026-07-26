@@ -22,8 +22,14 @@ namespace CoherentWarAI.Logic
         /// <summary>How far an over-subscribed target is pushed down.</summary>
         public const float DefaultSaturationSuppression = 0.3f;
 
-        /// <summary>Extra credit for a target nobody is dealing with yet.</summary>
-        public const float DefaultNeglectBonus = 1.25f;
+        /// <summary>
+        /// Extra credit for a target nobody is dealing with yet. Neutral by default:
+        /// in a real campaign almost no target has anyone committed to it, so this
+        /// was being handed to nearly every candidate - which is not a preference,
+        /// just a shifted scale. The damping of over-subscribed targets is the part
+        /// that actually separates them.
+        /// </summary>
+        public const float DefaultNeglectBonus = 1f;
 
         /// <summary>
         /// How strongly gateways attract defenders. Deliberately modest: patrolling
