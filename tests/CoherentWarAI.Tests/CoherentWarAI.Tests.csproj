@@ -27,6 +27,7 @@
     <Compile Include="..\..\src\CoherentWarAI\Logic\ClaimPlanner.cs" Link="Logic\ClaimPlanner.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\MarshalPlanner.cs" Link="Logic\MarshalPlanner.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\StrategicPriority.cs" Link="Logic\StrategicPriority.cs" />
+    <Compile Include="..\..\src\CoherentWarAI\Logic\BanditHuntPlanner.cs" Link="Logic\BanditHuntPlanner.cs" />
   </ItemGroup>
 
 </Project>

@@ -42,6 +42,7 @@ namespace CoherentWarAI
                 campaignStarter.AddBehavior(new ChokepointMapBehavior());
                 campaignStarter.AddBehavior(new WarCoordinatorBehavior());
                 campaignStarter.AddBehavior(new WarPostureBehavior());
+                campaignStarter.AddBehavior(new BanditHuntBehavior());
             }
         }
     }

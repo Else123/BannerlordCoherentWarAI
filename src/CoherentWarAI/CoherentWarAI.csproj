@@ -69,7 +69,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Behaviors\BanditHuntBehavior.cs" />
     <Compile Include="Behaviors\ChokepointMapBehavior.cs" />
+    <Compile Include="Logic\BanditHuntPlanner.cs" />
     <Compile Include="Behaviors\SettingsSyncBehavior.cs" />
     <Compile Include="Settings\CoherentWarAIMcmSettings.cs" />
     <Compile Include="Behaviors\WarCoordinatorBehavior.cs" />

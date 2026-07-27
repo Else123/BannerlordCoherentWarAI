@@ -219,6 +219,21 @@ namespace CoherentWarAI.Settings
         [SettingPropertyGroup(GarrisonGroup, GroupOrder = 6)]
         public float ChokepointGain { get; set; } = 0.5f;
 
+        [SettingPropertyBool("Idle defenders hunt bandits", Order = 6, RequireRestart = false,
+            HintText = "Vanilla lords never seek bandits out at all - they only fight them by walking into them. Lords held back for defence with nothing to do will now clear nearby bands, which protects villages and is how troops gain experience.")]
+        [SettingPropertyGroup(CoordinationGroup, GroupOrder = 3)]
+        public bool EnableBanditHunting { get; set; } = true;
+
+        [SettingPropertyFloatingInteger("Superiority needed to spare lords", 1f, 3f, "0.00", Order = 7, RequireRestart = false,
+            HintText = "How much stronger than its main enemy a realm must be before it sends anyone after bandits. At 1.0 even an evenly matched war allows it; higher values keep every lord at the front.")]
+        [SettingPropertyGroup(CoordinationGroup, GroupOrder = 3)]
+        public float BanditRequiredSuperiority { get; set; } = 1.3f;
+
+        [SettingPropertyFloatingInteger("Advantage needed over a band", 1f, 4f, "0.00", Order = 8, RequireRestart = false,
+            HintText = "Strength a hunter needs over its quarry. A lord lost to bandits is worse than bandits left alone.")]
+        [SettingPropertyGroup(CoordinationGroup, GroupOrder = 3)]
+        public float BanditRequiredAdvantage { get; set; } = 1.5f;
+
         // --- 8. Diagnostics ---------------------------------------------------
 
         [SettingPropertyBool("Write a decision log", Order = 0, RequireRestart = true,
@@ -266,6 +281,10 @@ namespace CoherentWarAI.Settings
             target.SaturationSuppression = SaturationSuppression;
             target.EnableGatewayDefense = EnableGatewayDefense;
             target.GatewayDefenseGain = GatewayDefenseGain;
+
+            target.EnableBanditHunting = EnableBanditHunting;
+            target.BanditRequiredSuperiority = BanditRequiredSuperiority;
+            target.BanditRequiredAdvantage = BanditRequiredAdvantage;
 
             target.EnableMarshalDoctrine = EnableMarshalDoctrine;
             target.SlotsPerMarshal = SlotsPerMarshal;

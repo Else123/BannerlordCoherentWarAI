@@ -256,6 +256,15 @@ namespace CoherentWarAI.Behaviors
         /// Share of the kingdom's fiefs currently under threat. Drives how many
         /// lords may be spared for offense - an invaded realm pulls its lords home.
         /// </summary>
+        /// <summary>
+        /// Share of a realm's fortifications currently under threat, 0..1. Exposed
+        /// so other behaviours can ask whether the realm has a war on its hands.
+        /// </summary>
+        public static float GetThreatRatio(Kingdom kingdom)
+        {
+            return kingdom == null ? 0f : CalculateThreatRatio(kingdom);
+        }
+
         private static float CalculateThreatRatio(Kingdom kingdom)
         {
             // Vanilla's threat intensity counts any hostile party near a settlement -

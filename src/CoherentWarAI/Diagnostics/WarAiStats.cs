@@ -33,6 +33,7 @@ namespace CoherentWarAI.Diagnostics
         private static int _floorHit;
         private static int _hysteresisHeld;
         private static int _gatewayDefence;
+        private static int _banditHunts;
 
         /// <summary>Records one offensive target evaluation and what each weight did to it.</summary>
         public static void RecordScore(float overkill, float front, float coord, float strategy, bool floored)
@@ -101,6 +102,11 @@ namespace CoherentWarAI.Diagnostics
             _gatewayDefence++;
         }
 
+        public static void RecordBanditHunts(int count)
+        {
+            _banditHunts += count;
+        }
+
         /// <summary>Writes the day's tally and starts a fresh one.</summary>
         public static void FlushDaily()
         {
@@ -147,6 +153,9 @@ namespace CoherentWarAI.Diagnostics
                 "commitments held against vanilla: {0}; gateway posting applied: {1}",
                 _hysteresisHeld, _gatewayDefence));
 
+            WarAiLog.Write("Effect", string.Format(
+                "idle defenders sent after bandits: {0}", _banditHunts));
+
             Reset();
         }
 
@@ -171,6 +180,7 @@ namespace CoherentWarAI.Diagnostics
             _floorHit = 0;
             _hysteresisHeld = 0;
             _gatewayDefence = 0;
+            _banditHunts = 0;
         }
     }
 }

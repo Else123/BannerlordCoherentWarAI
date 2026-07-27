@@ -93,6 +93,16 @@ namespace CoherentWarAI.Settings
         public bool EnableGatewayDefense = true;
         public float GatewayDefenseGain = ClaimPlanner.DefaultGatewayDefenseGain;
 
+        // Bandit hunting - idle defenders police the realm.
+        public bool EnableBanditHunting = true;
+        public float BanditMaxThreatRatio = BanditHuntPlanner.DefaultMaxThreatRatio;
+        public float BanditRequiredSuperiority = BanditHuntPlanner.DefaultRequiredSuperiority;
+        public float BanditRequiredAdvantage = BanditHuntPlanner.DefaultRequiredHunterAdvantage;
+        public float BanditHuntCommitmentHours = BanditHuntPlanner.DefaultHuntCommitmentHours;
+
+        /// <summary>How far afield a hunter looks, as a multiple of the map's settlement spacing.</summary>
+        public float BanditSearchRadiusFactor = 1f;
+
         // Diagnostics. On by default: the weights above ship as conservative
         // starting points, and tuning them without a trace is guesswork.
         public bool EnableLogging = true;
