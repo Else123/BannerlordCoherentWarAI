@@ -173,9 +173,9 @@ namespace CoherentWarAI.Settings
         public float SecondaryEnemyDamp { get; set; } = 0.8f;
 
         [SettingPropertyBool("Want conquests worth holding", Order = 3, RequireRestart = false,
-            HintText = "Prefer taking fiefs that round off the border over ones that would jut into enemy ground as an indefensible salient.")]
+            HintText = "Prefer fiefs that round off the border over ones jutting into enemy ground. OFF by default: measured in play it penalised 91% of all targets and rewarded none, because a conquest target is enemy ground by definition. Front coherence already judges nearness to our own land, and does it better.")]
         [SettingPropertyGroup(StrategyGroup, GroupOrder = 5)]
-        public bool EnableHoldability { get; set; } = true;
+        public bool EnableHoldability { get; set; } = false;
 
         [SettingPropertyFloatingInteger("Salient penalty", 0f, 0.9f, "0.00", Order = 4, RequireRestart = false,
             HintText = "How far a conquest ringed by enemy holdings is discouraged. Only genuinely lopsided cases count - an ordinary border objective is left alone. A nudge, never a veto.")]

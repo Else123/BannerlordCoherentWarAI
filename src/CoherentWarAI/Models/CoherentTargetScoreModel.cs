@@ -135,15 +135,19 @@ namespace CoherentWarAI.Models
                 return 0f;
             }
 
+            bool pursuing = IsPursuing(mobileParty, targetSettlement);
+
             if (!_commitments.TryGet(mobileParty, targetSettlement, missionType,
                     out float lastScore, out float hoursSinceSeen, out float hoursSinceCommitted))
             {
+                WarAiStats.RecordRejectedTarget(pursuing, hadMemory: false, memoryStale: false, oddsTooBad: false);
                 return 0f;
             }
 
             float retention = EngagementHysteresis.RetentionFactor(hoursSinceSeen, settings.RetentionDecayHours);
             if (retention <= 0f)
             {
+                WarAiStats.RecordRejectedTarget(pursuing, hadMemory: true, memoryStale: true, oddsTooBad: false);
                 return 0f;
             }
 
@@ -156,6 +160,7 @@ namespace CoherentWarAI.Models
 
             if (!EngagementHysteresis.ShouldPursue(ratio, committed: true, settings.EngageRatio, threshold))
             {
+                WarAiStats.RecordRejectedTarget(pursuing, hadMemory: true, memoryStale: false, oddsTooBad: true);
                 return 0f;
             }
 

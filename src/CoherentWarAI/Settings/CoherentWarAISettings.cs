@@ -65,7 +65,15 @@ namespace CoherentWarAI.Settings
         public bool EnableEnemyFocus = true;
         public float PrimaryEnemyBoost = StrategicPriority.DefaultPrimaryEnemyBoost;
         public float SecondaryEnemyDamp = StrategicPriority.DefaultSecondaryEnemyDamp;
-        public bool EnableHoldability = true;
+        /// <summary>
+        /// Off by default. Measured over two playtests it penalised 91% of all
+        /// targets and rewarded none: a conquest target is enemy ground by
+        /// definition, so counting its enemy neighbours says almost nothing.
+        /// Judging how near a target is to our own ground is what front coherence
+        /// already does, and it does it relatively rather than absolutely - so this
+        /// mostly duplicated that while dragging every score down.
+        /// </summary>
+        public bool EnableHoldability = false;
         public float ConsolidationBonus = StrategicPriority.DefaultConsolidationBonus;
         public float SalientPenalty = StrategicPriority.DefaultSalientPenalty;
 

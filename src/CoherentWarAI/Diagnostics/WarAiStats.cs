@@ -35,6 +35,12 @@ namespace CoherentWarAI.Diagnostics
         private static int _gatewayDefence;
         private static int _banditHunts;
 
+        private static int _rejected;
+        private static int _rejectedWhilePursuing;
+        private static int _rejectedWithMemory;
+        private static int _rejectedMemoryStale;
+        private static int _rejectedOddsTooBad;
+
         /// <summary>Records one offensive target evaluation and what each weight did to it.</summary>
         public static void RecordScore(float overkill, float front, float coord, float strategy, bool floored)
         {
@@ -97,6 +103,32 @@ namespace CoherentWarAI.Diagnostics
             _hysteresisHeld++;
         }
 
+        /// <summary>
+        /// Traces why the hysteresis does or does not fire. It reported zero holds
+        /// across two full playtests, and guessing at the cause has already failed
+        /// once - these count each step of the path so the break is visible.
+        /// </summary>
+        public static void RecordRejectedTarget(bool wasPursuing, bool hadMemory, bool memoryStale, bool oddsTooBad)
+        {
+            _rejected++;
+            if (wasPursuing)
+            {
+                _rejectedWhilePursuing++;
+            }
+            if (hadMemory)
+            {
+                _rejectedWithMemory++;
+            }
+            if (memoryStale)
+            {
+                _rejectedMemoryStale++;
+            }
+            if (oddsTooBad)
+            {
+                _rejectedOddsTooBad++;
+            }
+        }
+
         public static void RecordGatewayDefence()
         {
             _gatewayDefence++;
@@ -156,6 +188,13 @@ namespace CoherentWarAI.Diagnostics
             WarAiLog.Write("Effect", string.Format(
                 "idle defenders sent after bandits: {0}", _banditHunts));
 
+            // Where the hysteresis path breaks: each number is a stage, so the drop
+            // between two of them is the answer.
+            WarAiLog.Write("Effect", string.Format(
+                "targets vanilla rejected: {0} ({1} of them by a lord already pursuing it); "
+                + "of those, {2} had a remembered rating, {3} were too stale, {4} had odds too poor",
+                _rejected, _rejectedWhilePursuing, _rejectedWithMemory, _rejectedMemoryStale, _rejectedOddsTooBad));
+
             Reset();
         }
 
@@ -181,6 +220,11 @@ namespace CoherentWarAI.Diagnostics
             _hysteresisHeld = 0;
             _gatewayDefence = 0;
             _banditHunts = 0;
+            _rejected = 0;
+            _rejectedWhilePursuing = 0;
+            _rejectedWithMemory = 0;
+            _rejectedMemoryStale = 0;
+            _rejectedOddsTooBad = 0;
         }
     }
 }
