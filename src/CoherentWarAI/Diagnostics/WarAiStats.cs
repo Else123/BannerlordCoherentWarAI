@@ -40,6 +40,7 @@ namespace CoherentWarAI.Diagnostics
         private static int _rejectedWithMemory;
         private static int _rejectedMemoryStale;
         private static int _rejectedOddsTooBad;
+        private static int _pursuitHeld;
 
         /// <summary>Records one offensive target evaluation and what each weight did to it.</summary>
         public static void RecordScore(float overkill, float front, float coord, float strategy, bool floored)
@@ -134,6 +135,11 @@ namespace CoherentWarAI.Diagnostics
             _gatewayDefence++;
         }
 
+        public static void RecordPursuitHeld()
+        {
+            _pursuitHeld++;
+        }
+
         public static void RecordBanditHunts(int count)
         {
             _banditHunts += count;
@@ -182,8 +188,8 @@ namespace CoherentWarAI.Diagnostics
                 _floorHit, Share(_floorHit)));
 
             WarAiLog.Write("Effect", string.Format(
-                "commitments held against vanilla: {0}; gateway posting applied: {1}",
-                _hysteresisHeld, _gatewayDefence));
+                "pursuit kept its target: {0} ({1:P0}); commitments rescued outright: {2}; gateway posting: {3}",
+                _pursuitHeld, Share(_pursuitHeld), _hysteresisHeld, _gatewayDefence));
 
             WarAiLog.Write("Effect", string.Format(
                 "idle defenders sent after bandits: {0}", _banditHunts));
@@ -225,6 +231,7 @@ namespace CoherentWarAI.Diagnostics
             _rejectedWithMemory = 0;
             _rejectedMemoryStale = 0;
             _rejectedOddsTooBad = 0;
+            _pursuitHeld = 0;
         }
     }
 }

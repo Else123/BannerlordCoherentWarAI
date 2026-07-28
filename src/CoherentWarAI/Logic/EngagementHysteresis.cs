@@ -38,6 +38,13 @@ namespace CoherentWarAI.Logic
         public const float DefaultCollapseRatio = 0.5f;
 
         /// <summary>
+        /// Extra weight for the target a lord is already heading for. Modest on
+        /// purpose: enough that a briefly better-looking alternative does not pull
+        /// him off course, not so much that he ignores a genuinely better one.
+        /// </summary>
+        public const float DefaultPursuitStickiness = 1.35f;
+
+        /// <summary>
         /// Schmitt trigger: an uncommitted party needs <paramref name="engageRatio"/>
         /// to start, while a committed one only needs <paramref name="abandonRatio"/>
         /// to carry on. The gap between the two is the hysteresis band in which a

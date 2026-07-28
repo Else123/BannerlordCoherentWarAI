@@ -25,6 +25,14 @@ namespace CoherentWarAI.Settings
         public float RetentionDecayHours = EngagementHysteresis.DefaultRetentionDecayHours;
         public float CollapseRatio = EngagementHysteresis.DefaultCollapseRatio;
 
+        /// <summary>
+        /// Extra weight for the target a lord is already heading for. This is what
+        /// actually counters the dithering: measured in play, vanilla never rejects
+        /// a target outright once a lord is committed to it - lords are lured away
+        /// by something else scoring briefly higher instead.
+        /// </summary>
+        public float PursuitStickiness = EngagementHysteresis.DefaultPursuitStickiness;
+
         // Slice B-def - defense-first posture.
         public bool EnableDefensivePosture = true;
         public float AggressiveShare = PosturePlanner.DefaultAggressiveShare;

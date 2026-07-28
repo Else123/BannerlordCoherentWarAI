@@ -1,3 +1,4 @@
+﻿using CoherentWarAI.Logic;
 using MCM.Abstractions.Attributes;
 using MCM.Abstractions.Attributes.v2;
 using MCM.Abstractions.Base.Global;
@@ -40,17 +41,17 @@ namespace CoherentWarAI.Settings
         [SettingPropertyFloatingInteger("Share allowed to attack", 0.05f, 1f, "0%", Order = 1, RequireRestart = false,
             HintText = "Fraction of a realm's lords released for offence when nothing is threatened. Shrinks automatically as more of the realm comes under threat. Cannot be set to zero: that would freeze every AI offensive in the game permanently.")]
         [SettingPropertyGroup(DefenceGroup, GroupOrder = 0)]
-        public float AggressiveShare { get; set; } = 0.34f;
+        public float AggressiveShare { get; set; } = PosturePlanner.DefaultAggressiveShare;
 
         [SettingPropertyInteger("Defenders always held back", 0, 10, "0", Order = 2, RequireRestart = false,
             HintText = "Lords never released for offence. Capped so a small realm is never left unable to attack at all.")]
         [SettingPropertyGroup(DefenceGroup, GroupOrder = 0)]
-        public int MinimumDefenders { get; set; } = 2;
+        public int MinimumDefenders { get; set; } = PosturePlanner.DefaultMinimumDefenders;
 
         [SettingPropertyFloatingInteger("Weight of a lord's Valor", 0f, 1f, "0.00", Order = 3, RequireRestart = false,
             HintText = "How strongly the Valor trait decides who leads attacks. 0 means only strength counts.")]
         [SettingPropertyGroup(DefenceGroup, GroupOrder = 0)]
-        public float ValorWeight { get; set; } = 0.25f;
+        public float ValorWeight { get; set; } = PosturePlanner.DefaultValorWeight;
 
         [SettingPropertyBool("Manage your own clan parties", Order = 4, RequireRestart = false,
             HintText = "Give your companions' parties objectives too, so they stop wandering off and losing their troops. Your own party is never touched.")]
@@ -67,22 +68,22 @@ namespace CoherentWarAI.Settings
         [SettingPropertyFloatingInteger("Overkill onset", 1f, 4f, "0.0", Order = 1, RequireRestart = false,
             HintText = "Strength ratio beyond which extra superiority stops making a target more attractive.")]
         [SettingPropertyGroup(TargetGroup, GroupOrder = 1)]
-        public float OverkillOnset { get; set; } = 1.5f;
+        public float OverkillOnset { get; set; } = TargetWeights.DefaultOverkillOnset;
 
         [SettingPropertyFloatingInteger("Overkill damping", 0.1f, 1f, "0.00", Order = 2, RequireRestart = false,
             HintText = "How far a wildly over-matched target is pushed down. 1 disables the damping.")]
         [SettingPropertyGroup(TargetGroup, GroupOrder = 1)]
-        public float OverkillMinFactor { get; set; } = 0.6f;
+        public float OverkillMinFactor { get; set; } = TargetWeights.DefaultOverkillMinFactor;
 
         [SettingPropertyFloatingInteger("Front coherence floor", 0.1f, 1f, "0.00", Order = 3, RequireRestart = false,
             HintText = "Score multiplier for a target with no friendly ground near it. Lower means deep strikes are discouraged harder.")]
         [SettingPropertyGroup(TargetGroup, GroupOrder = 1)]
-        public float FrontFloor { get; set; } = 0.6f;
+        public float FrontFloor { get; set; } = TargetWeights.DefaultFrontFloor;
 
         [SettingPropertyFloatingInteger("Front coherence gain", 0f, 2f, "0.00", Order = 4, RequireRestart = false,
             HintText = "Extra weight for targets on our own front.")]
         [SettingPropertyGroup(TargetGroup, GroupOrder = 1)]
-        public float FrontGain { get; set; } = 0.9f;
+        public float FrontGain { get; set; } = TargetWeights.DefaultFrontGain;
 
         [SettingPropertyFloatingInteger("Minimum score floor", 0.05f, 1f, "0.00", Order = 5, RequireRestart = false,
             HintText = "Least this mod may reduce a vanilla score to, however many weights stack. Attacks compete with defending and patrolling, so an over-damped attack would lose to standing around. Cannot be set to zero - that is the guarantee this setting exists to provide.")]
@@ -99,17 +100,17 @@ namespace CoherentWarAI.Settings
         [SettingPropertyFloatingInteger("Ratio to begin an attack", 1f, 4f, "0.0", Order = 1, RequireRestart = false,
             HintText = "Strength ratio required to commit to a new target.")]
         [SettingPropertyGroup(CommitmentGroup, GroupOrder = 2)]
-        public float EngageRatio { get; set; } = 2f;
+        public float EngageRatio { get; set; } = EngagementHysteresis.DefaultEngageRatio;
 
         [SettingPropertyFloatingInteger("Ratio to abandon one", 0.5f, 3f, "0.0", Order = 2, RequireRestart = false,
             HintText = "Ratio below which a committed lord finally gives up. The gap to the value above is the hysteresis band.")]
         [SettingPropertyGroup(CommitmentGroup, GroupOrder = 2)]
-        public float AbandonRatio { get; set; } = 1.4f;
+        public float AbandonRatio { get; set; } = EngagementHysteresis.DefaultAbandonRatio;
 
         [SettingPropertyFloatingInteger("Protected commitment (hours)", 0f, 48f, "0", Order = 3, RequireRestart = false,
             HintText = "How long a fresh decision is left alone. An outright collapse of the lord's own force still ends it.")]
         [SettingPropertyGroup(CommitmentGroup, GroupOrder = 2)]
-        public float MinCommitmentHours { get; set; } = 12f;
+        public float MinCommitmentHours { get; set; } = EngagementHysteresis.DefaultMinCommitmentHours;
 
         // --- 4. Coordination --------------------------------------------------
 
@@ -121,12 +122,12 @@ namespace CoherentWarAI.Settings
         [SettingPropertyFloatingInteger("Force worth sending", 1f, 5f, "0.0", Order = 1, RequireRestart = false,
             HintText = "Strength considered sufficient for a target, as a multiple of its defenders. Arrivals beyond this are pushed elsewhere.")]
         [SettingPropertyGroup(CoordinationGroup, GroupOrder = 3)]
-        public float RequiredMargin { get; set; } = 2f;
+        public float RequiredMargin { get; set; } = ClaimPlanner.DefaultRequiredMargin;
 
         [SettingPropertyFloatingInteger("Crowding penalty", 0f, 1f, "0.00", Order = 2, RequireRestart = false,
             HintText = "Score multiplier for joining an effort that is already more than sufficient.")]
         [SettingPropertyGroup(CoordinationGroup, GroupOrder = 3)]
-        public float SaturationSuppression { get; set; } = 0.3f;
+        public float SaturationSuppression { get; set; } = ClaimPlanner.DefaultSaturationSuppression;
 
         [SettingPropertyBool("Defenders hold the gateways", Order = 3, RequireRestart = false,
             HintText = "Post defending lords on the routes an invader must pass through, rather than wherever the last alarm came from. Suspended for anywhere already under attack.")]
@@ -136,7 +137,7 @@ namespace CoherentWarAI.Settings
         [SettingPropertyFloatingInteger("Pull toward gateways", 0f, 2f, "0.00", Order = 4, RequireRestart = false,
             HintText = "How strongly gateways attract defenders. Kept modest on purpose: watching a quiet gate must never outrank relieving a burning town.")]
         [SettingPropertyGroup(CoordinationGroup, GroupOrder = 3)]
-        public float GatewayDefenseGain { get; set; } = 0.8f;
+        public float GatewayDefenseGain { get; set; } = ClaimPlanner.DefaultGatewayDefenseGain;
 
         // --- 5. Marshal doctrine ---------------------------------------------
 
@@ -148,12 +149,12 @@ namespace CoherentWarAI.Settings
         [SettingPropertyInteger("Lords per marshal", 1, 20, "0", Order = 1, RequireRestart = false,
             HintText = "How many offensive lords one marshal is expected to absorb. Higher means fewer, larger hosts.")]
         [SettingPropertyGroup(MarshalGroup, GroupOrder = 4)]
-        public int SlotsPerMarshal { get; set; } = 6;
+        public int SlotsPerMarshal { get; set; } = MarshalPlanner.DefaultSlotsPerMarshal;
 
         [SettingPropertyInteger("Simultaneous offensives", 1, 6, "0", Order = 2, RequireRestart = false,
             HintText = "Upper bound on marshals per realm. Several converging campaigns is the incoherence problem, not the fix.")]
         [SettingPropertyGroup(MarshalGroup, GroupOrder = 4)]
-        public int MaxMarshals { get; set; } = 3;
+        public int MaxMarshals { get; set; } = MarshalPlanner.DefaultMaxMarshals;
 
         // --- 6. Strategy ------------------------------------------------------
 
@@ -165,12 +166,12 @@ namespace CoherentWarAI.Settings
         [SettingPropertyFloatingInteger("Priority war weight", 1f, 2f, "0.00", Order = 1, RequireRestart = false,
             HintText = "Preference for fiefs of the enemy chosen to be finished first.")]
         [SettingPropertyGroup(StrategyGroup, GroupOrder = 5)]
-        public float PrimaryEnemyBoost { get; set; } = 1.25f;
+        public float PrimaryEnemyBoost { get; set; } = StrategicPriority.DefaultPrimaryEnemyBoost;
 
         [SettingPropertyFloatingInteger("Other wars weight", 0.1f, 1f, "0.00", Order = 2, RequireRestart = false,
             HintText = "How far other fronts are set aside. Too low and a second front stops being answered at all.")]
         [SettingPropertyGroup(StrategyGroup, GroupOrder = 5)]
-        public float SecondaryEnemyDamp { get; set; } = 0.8f;
+        public float SecondaryEnemyDamp { get; set; } = StrategicPriority.DefaultSecondaryEnemyDamp;
 
         [SettingPropertyBool("Want conquests worth holding", Order = 3, RequireRestart = false,
             HintText = "Prefer fiefs that round off the border over ones jutting into enemy ground. OFF by default: measured in play it penalised 91% of all targets and rewarded none, because a conquest target is enemy ground by definition. Front coherence already judges nearness to our own land, and does it better.")]
@@ -180,12 +181,12 @@ namespace CoherentWarAI.Settings
         [SettingPropertyFloatingInteger("Salient penalty", 0f, 0.9f, "0.00", Order = 4, RequireRestart = false,
             HintText = "How far a conquest ringed by enemy holdings is discouraged. Only genuinely lopsided cases count - an ordinary border objective is left alone. A nudge, never a veto.")]
         [SettingPropertyGroup(StrategyGroup, GroupOrder = 5)]
-        public float SalientPenalty { get; set; } = 0.4f;
+        public float SalientPenalty { get; set; } = StrategicPriority.DefaultSalientPenalty;
 
         [SettingPropertyFloatingInteger("Consolidation bonus", 0f, 1f, "0.00", Order = 5, RequireRestart = false,
             HintText = "Extra weight for taking a fief whose neighbours are already ours, rounding off the border.")]
         [SettingPropertyGroup(StrategyGroup, GroupOrder = 5)]
-        public float ConsolidationBonus { get; set; } = 0.35f;
+        public float ConsolidationBonus { get; set; } = StrategicPriority.DefaultConsolidationBonus;
 
         // --- 7. Garrisons and gateways ---------------------------------------
 
@@ -197,17 +198,17 @@ namespace CoherentWarAI.Settings
         [SettingPropertyFloatingInteger("Interior garrison size", 0.3f, 1.5f, "0.00", Order = 1, RequireRestart = false,
             HintText = "Multiplier for quiet interior holdings. Below 1 frees those troops for the field army.")]
         [SettingPropertyGroup(GarrisonGroup, GroupOrder = 6)]
-        public float InteriorBase { get; set; } = 0.8f;
+        public float InteriorBase { get; set; } = GarrisonPlanner.DefaultInteriorBase;
 
         [SettingPropertyFloatingInteger("Border garrison size", 1f, 3f, "0.00", Order = 2, RequireRestart = false,
             HintText = "Multiplier for fiefs on a hostile border. Raise with care: garrisons cost wages and food.")]
         [SettingPropertyGroup(GarrisonGroup, GroupOrder = 6)]
-        public float BorderBase { get; set; } = 1.4f;
+        public float BorderBase { get; set; } = GarrisonPlanner.DefaultBorderBase;
 
         [SettingPropertyInteger("Daily recruits when threatened", 1, 6, "0", Order = 3, RequireRestart = false,
             HintText = "Vanilla allows one a day everywhere, which cannot refill a frontier garrison between raids.")]
         [SettingPropertyGroup(GarrisonGroup, GroupOrder = 6)]
-        public int RecruitCapMax { get; set; } = 3;
+        public int RecruitCapMax { get; set; } = GarrisonPlanner.DefaultRecruitCapMax;
 
         [SettingPropertyBool("Find gateways by route", Order = 4, RequireRestart = false,
             HintText = "Walk the campaign map's travel graph to find the settlements an invader must pass through, instead of merely counting foreign neighbours. Alternative routes dissolve a gate's importance.")]
@@ -217,7 +218,7 @@ namespace CoherentWarAI.Settings
         [SettingPropertyFloatingInteger("Gateway garrison bonus", 0f, 2f, "0.00", Order = 5, RequireRestart = false,
             HintText = "Extra garrison for the gates of a realm, on top of the border multiplier.")]
         [SettingPropertyGroup(GarrisonGroup, GroupOrder = 6)]
-        public float ChokepointGain { get; set; } = 0.5f;
+        public float ChokepointGain { get; set; } = GarrisonPlanner.DefaultChokepointGain;
 
         [SettingPropertyBool("Idle defenders hunt bandits", Order = 6, RequireRestart = false,
             HintText = "Vanilla lords never seek bandits out at all - they only fight them by walking into them. Lords held back for defence with nothing to do will now clear nearby bands, which protects villages and is how troops gain experience.")]
@@ -227,12 +228,12 @@ namespace CoherentWarAI.Settings
         [SettingPropertyFloatingInteger("Superiority needed to spare lords", 1f, 3f, "0.00", Order = 7, RequireRestart = false,
             HintText = "How much stronger than its main enemy a realm must be before it sends anyone after bandits. At 1.0 even an evenly matched war allows it; higher values keep every lord at the front.")]
         [SettingPropertyGroup(CoordinationGroup, GroupOrder = 3)]
-        public float BanditRequiredSuperiority { get; set; } = 1.3f;
+        public float BanditRequiredSuperiority { get; set; } = BanditHuntPlanner.DefaultRequiredSuperiority;
 
         [SettingPropertyFloatingInteger("Advantage needed over a band", 1f, 4f, "0.00", Order = 8, RequireRestart = false,
             HintText = "Strength a hunter needs over its quarry. A lord lost to bandits is worse than bandits left alone.")]
         [SettingPropertyGroup(CoordinationGroup, GroupOrder = 3)]
-        public float BanditRequiredAdvantage { get; set; } = 1.5f;
+        public float BanditRequiredAdvantage { get; set; } = BanditHuntPlanner.DefaultRequiredHunterAdvantage;
 
         // --- 8. Diagnostics ---------------------------------------------------
 
@@ -309,3 +310,4 @@ namespace CoherentWarAI.Settings
         }
     }
 }
+

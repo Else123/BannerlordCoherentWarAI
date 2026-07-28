@@ -89,7 +89,23 @@ namespace CoherentWarAI.Models
             // Four mild nudges compound. Defending and patrolling are scored by
             // paths we do not touch, so an over-damped attack would not merely rank
             // lower - it would lose to standing around. Floor the combination.
-            float raw = wOverkill * wFront * wCoord * wStrategy;
+            // Sticking with what this lord already set out to do.
+            //
+            // Measured across a campaign: vanilla never once rejected a target a
+            // lord was already pursuing, so waiting for a target to become
+            // impossible - the original approach - could never fire. The dithering
+            // at the gates is relative, not absolute: a lord is lured away because
+            // something else briefly scores higher, not because his own target
+            // became unreachable. So the pull has to be on the target he already
+            // has. Vanilla applies a mild stickiness of its own; this deepens it.
+            float wCommitment = 1f;
+            if (settings.EnableCommitmentHysteresis && IsPursuing(mobileParty, targetSettlement))
+            {
+                wCommitment = settings.PursuitStickiness;
+                WarAiStats.RecordPursuitHeld();
+            }
+
+            float raw = wOverkill * wFront * wCoord * wStrategy * wCommitment;
             float combined = StrategicPriority.ApplyWeightFloor(raw, settings.MinimumWeightFloor);
 
             WarAiStats.RecordScore(wOverkill, wFront, wCoord, wStrategy, combined > raw);
