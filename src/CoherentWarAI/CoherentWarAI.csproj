@@ -71,6 +71,7 @@
   <ItemGroup>
     <Compile Include="Behaviors\BanditHuntBehavior.cs" />
     <Compile Include="Behaviors\ChokepointMapBehavior.cs" />
+    <Compile Include="Behaviors\OutcomeLogBehavior.cs" />
     <Compile Include="Logic\BanditHuntPlanner.cs" />
     <Compile Include="Behaviors\SettingsSyncBehavior.cs" />
     <Compile Include="Settings\CoherentWarAIMcmSettings.cs" />
