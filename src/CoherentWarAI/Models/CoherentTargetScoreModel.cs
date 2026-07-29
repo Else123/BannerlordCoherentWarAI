@@ -52,84 +52,13 @@ namespace CoherentWarAI.Models
                 return baseScore;
             }
 
-            // Each weight is gated by its own setting. They must not be nested
-            // inside one another: the settings page presents them as independent
-            // switches, so turning one off has to leave the others working.
-            bool needDefenderEstimate = settings.EnableTargetDeGreed
-                || settings.EnableCoordination
-                || settings.CountNearbyDefenders;
-            float defenderStrength = needDefenderEstimate ? EstimateDefenderStrength(targetSettlement) : 0f;
+            WeightToggles toggles = BuildToggles(settings, targetSettlement, mobileParty);
+            ScoreInputs inputs = GatherInputs(targetSettlement, mobileParty, ourStrength, toggles, settings);
+            ScoreWeights weights = ScoreComposer.Compose(inputs, toggles, BuildTuning(settings));
 
-            // What vanilla could not see: relieving forces nearby, and the player at
-            // full weight rather than discounted. Applied as a correction because
-            // vanilla's own defender figure is buried inside the base score.
-            float wVisibility = 1f;
-            if (settings.CountNearbyDefenders && isOffensive)
-            {
-                float available = EstimateAvailableDefence(targetSettlement, mobileParty, defenderStrength);
-                wVisibility = TargetWeights.DefenderVisibilityCorrection(defenderStrength, available);
-                if (wVisibility < 1f)
-                {
-                    WarAiStats.RecordDefenceCorrection();
-                }
-            }
+            RecordDiagnostics(weights, inputs, toggles, ourStrength);
 
-            float wOverkill = 1f;
-            float wFront = 1f;
-            if (settings.EnableTargetDeGreed)
-            {
-                float onset = TargetWeights.AdaptiveOnset(settings.OverkillOnset, WarAiStats.TypicalStrengthRatio);
-                wOverkill = TargetWeights.Overkill(ourStrength, defenderStrength, onset, settings.OverkillMinFactor, settings.OverkillSpan);
-                WarAiStats.ObserveStrengthRatio(ourStrength, defenderStrength);
-
-                CountFrontNeighbors(targetSettlement, mobileParty, out int ownedByUs, out int notOwnedByTarget);
-                wFront = TargetWeights.FrontCoherence(ownedByUs, notOwnedByTarget, settings.FrontFloor, settings.FrontGain);
-            }
-
-            // What the rest of our realm is already sending here. Vanilla has no
-            // such term at all, which is why every lord picks the same fief.
-            //
-            // Only applies to lords who would be *arriving*: someone already
-            // committed here is not joining a pile, and damping him because an ally
-            // turned up too would undercut a siege he is already prosecuting.
-            float wCoord = 1f;
-            if (settings.EnableCoordination
-                && WarCoordinatorBehavior.GetCommittedTarget(mobileParty) != targetSettlement)
-            {
-                float committed = WarCoordinatorBehavior.GetCommittedStrengthExcluding(targetSettlement, mobileParty);
-                float required = ClaimPlanner.RequiredStrength(defenderStrength, settings.RequiredMargin);
-                wCoord = ClaimPlanner.SaturationBias(committed, required, settings.SaturationSuppression, settings.NeglectBonus);
-            }
-
-            // Which war to press, and whether this conquest would round off our
-            // border or stick out into theirs.
-            float wStrategy = StrategicWeight(targetSettlement, mobileParty, settings);
-
-            // Four mild nudges compound. Defending and patrolling are scored by
-            // paths we do not touch, so an over-damped attack would not merely rank
-            // lower - it would lose to standing around. Floor the combination.
-            // Sticking with what this lord already set out to do.
-            //
-            // Measured across a campaign: vanilla never once rejected a target a
-            // lord was already pursuing, so waiting for a target to become
-            // impossible - the original approach - could never fire. The dithering
-            // at the gates is relative, not absolute: a lord is lured away because
-            // something else briefly scores higher, not because his own target
-            // became unreachable. So the pull has to be on the target he already
-            // has. Vanilla applies a mild stickiness of its own; this deepens it.
-            float wCommitment = 1f;
-            if (settings.EnableCommitmentHysteresis && IsPursuing(mobileParty, targetSettlement))
-            {
-                wCommitment = settings.PursuitStickiness;
-                WarAiStats.RecordPursuitHeld();
-            }
-
-            float raw = wOverkill * wFront * wCoord * wStrategy * wCommitment * wVisibility;
-            float combined = StrategicPriority.ApplyWeightFloor(raw, settings.MinimumWeightFloor);
-
-            WarAiStats.RecordScore(wOverkill, wFront, wCoord, wStrategy, combined > raw);
-
-            float score = baseScore * combined;
+            float score = baseScore * weights.Combined;
 
             // Off by default: this runs hundreds of times per game hour.
             if (WarAiLog.VerboseScoring)
@@ -137,7 +66,7 @@ namespace CoherentWarAI.Models
                 WarAiLog.Write("Score", string.Format(
                     "{0} -> {1} ({2}): vanilla {3:F1} x overkill {4:F2} x front {5:F2} x coord {6:F2} x strategy {7:F2} = {8:F1}",
                     mobileParty.LeaderHero?.Name, targetSettlement.Name, missionType,
-                    baseScore, wOverkill, wFront, wCoord, wStrategy, score));
+                    baseScore, weights.Overkill, weights.Front, weights.Coordination, weights.Strategy, score));
             }
 
             // Remember the assessment of the target this lord is actually pursuing.
@@ -215,49 +144,139 @@ namespace CoherentWarAI.Models
         }
 
         /// <summary>
-        /// Combines the realm-level judgements about a target: which war it belongs
-        /// to, and what taking it would do to our border.
+        /// Which weights apply to this call. Settings decide, but so does whether
+        /// the data a weight needs exists at all - a weight with nothing to work
+        /// from is switched off here rather than defended against later.
         /// </summary>
-        private static float StrategicWeight(Settlement targetSettlement, MobileParty mobileParty, CoherentWarAISettings settings)
+        private static WeightToggles BuildToggles(CoherentWarAISettings settings, Settlement targetSettlement, MobileParty mobileParty)
         {
-            float weight = 1f;
-            IFaction ourFaction = mobileParty.MapFaction;
-            IFaction targetFaction = targetSettlement.MapFaction;
+            bool factionsKnown = mobileParty.MapFaction != null && targetSettlement.MapFaction != null;
 
-            if (settings.EnableEnemyFocus && ourFaction != null && targetFaction != null)
+            return new WeightToggles
             {
-                // Vanilla records a per-war priority but only ever applies it when
-                // the party's faction leader is the player, leaving AI realms with
-                // no notion of a prioritised war. This guard is exactly vanilla's
-                // own gate, so the player's kingdom keeps vanilla behaviour and the
-                // term is never counted twice.
-                int behaviorPriority = 0;
+                CountNearbyDefenders = settings.CountNearbyDefenders,
+                DeGreedTargets = settings.EnableTargetDeGreed,
+                Coordination = settings.EnableCoordination,
+                EnemyFocus = settings.EnableEnemyFocus && factionsKnown,
+                Holdability = settings.EnableHoldability && mobileParty.MapFaction != null,
+                CommitmentStickiness = settings.EnableCommitmentHysteresis
+            };
+        }
+
+        /// <summary>
+        /// Reads from the game only what the enabled weights actually need. Each
+        /// gather is guarded by the toggles' own derived properties, so a weight
+        /// cannot end up reading a value nobody computed.
+        /// </summary>
+        private static ScoreInputs GatherInputs(Settlement targetSettlement, MobileParty mobileParty, float ourStrength, WeightToggles toggles, CoherentWarAISettings settings)
+        {
+            ScoreInputs inputs = new ScoreInputs { AttackerStrength = ourStrength };
+
+            if (toggles.NeedsDefenderStrength)
+            {
+                inputs.DefenderStrength = EstimateDefenderStrength(targetSettlement);
+            }
+
+            if (toggles.CountNearbyDefenders)
+            {
+                inputs.AvailableDefence = EstimateAvailableDefence(targetSettlement, mobileParty, inputs.DefenderStrength);
+            }
+
+            if (toggles.NeedsFrontNeighbours)
+            {
+                CountFrontNeighbors(targetSettlement, mobileParty, out int ownedByUs, out int notOwnedByTarget);
+                inputs.FrontOwnedByUs = ownedByUs;
+                inputs.FrontNotOwnedByTarget = notOwnedByTarget;
+            }
+
+            if (toggles.NeedsPursuitState)
+            {
+                inputs.IsPursuingTarget = WarCoordinatorBehavior.GetCommittedTarget(mobileParty) == targetSettlement
+                    || IsPursuing(mobileParty, targetSettlement);
+            }
+
+            if (toggles.Coordination)
+            {
+                inputs.CommittedStrength = WarCoordinatorBehavior.GetCommittedStrengthExcluding(targetSettlement, mobileParty);
+            }
+
+            if (toggles.EnemyFocus)
+            {
+                IFaction ourFaction = mobileParty.MapFaction;
+                IFaction targetFaction = targetSettlement.MapFaction;
+                inputs.IsPrimaryEnemy = WarCoordinatorBehavior.IsPrimaryEnemy(ourFaction, targetFaction);
+
+                // Vanilla records a per-war priority but only applies it when the
+                // party's faction leader is the player. This guard is exactly
+                // vanilla's own gate, so the player's kingdom keeps vanilla
+                // behaviour and the term is never counted twice.
                 if (ourFaction.Leader != Hero.MainHero)
                 {
                     StanceLink stance = ourFaction.GetStanceWith(targetFaction);
                     if (stance != null)
                     {
-                        behaviorPriority = stance.BehaviorPriority;
+                        inputs.StancePriority = stance.BehaviorPriority;
                     }
                 }
-
-                weight *= StrategicPriority.CombinedWarFocus(
-                    behaviorPriority,
-                    WarCoordinatorBehavior.IsPrimaryEnemy(ourFaction, targetFaction),
-                    settings.PrimaryEnemyBoost, settings.SecondaryEnemyDamp);
             }
 
-            if (settings.EnableHoldability && ourFaction != null)
+            if (toggles.NeedsHoldabilityNeighbours)
             {
-                CountHoldabilityNeighbors(targetSettlement, ourFaction, out int wouldBeOurs, out int wouldStayForeign);
-                float holdability = StrategicPriority.HoldabilityBias(
-                    wouldBeOurs, wouldStayForeign,
-                    settings.ConsolidationBonus, settings.SalientPenalty);
-                WarAiStats.RecordHoldability(holdability);
-                weight *= holdability;
+                CountHoldabilityNeighbors(targetSettlement, mobileParty.MapFaction,
+                    out int wouldBeOurs, out int wouldStayForeign);
+                inputs.HoldabilityFriendlyNeighbours = wouldBeOurs;
+                inputs.HoldabilityHostileNeighbours = wouldStayForeign;
             }
 
-            return weight;
+            return inputs;
+        }
+
+        /// <summary>
+        /// Tuning values as the composer wants them. The overkill onset is resolved
+        /// here because it depends on what the campaign has looked like so far.
+        /// </summary>
+        private static ScoreTuning BuildTuning(CoherentWarAISettings settings)
+        {
+            return new ScoreTuning
+            {
+                OverkillOnset = TargetWeights.AdaptiveOnset(settings.OverkillOnset, WarAiStats.TypicalStrengthRatio),
+                OverkillMinFactor = settings.OverkillMinFactor,
+                OverkillSpan = settings.OverkillSpan,
+                FrontFloor = settings.FrontFloor,
+                FrontGain = settings.FrontGain,
+                RequiredMargin = settings.RequiredMargin,
+                SaturationSuppression = settings.SaturationSuppression,
+                NeglectBonus = settings.NeglectBonus,
+                PrimaryEnemyBoost = settings.PrimaryEnemyBoost,
+                SecondaryEnemyDamp = settings.SecondaryEnemyDamp,
+                ConsolidationBonus = settings.ConsolidationBonus,
+                SalientPenalty = settings.SalientPenalty,
+                PursuitStickiness = settings.PursuitStickiness,
+                MinimumWeightFloor = settings.MinimumWeightFloor
+            };
+        }
+
+        private static void RecordDiagnostics(ScoreWeights weights, ScoreInputs inputs, WeightToggles toggles, float ourStrength)
+        {
+            if (toggles.CountNearbyDefenders && weights.Visibility < 1f)
+            {
+                WarAiStats.RecordDefenceCorrection();
+            }
+            if (toggles.DeGreedTargets)
+            {
+                WarAiStats.ObserveStrengthRatio(ourStrength, inputs.DefenderStrength);
+            }
+            if (toggles.Holdability)
+            {
+                WarAiStats.RecordHoldability(weights.HoldabilityBias);
+            }
+            if (toggles.CommitmentStickiness && inputs.IsPursuingTarget)
+            {
+                WarAiStats.RecordPursuitHeld();
+            }
+
+            WarAiStats.RecordScore(weights.Overkill, weights.Front, weights.Coordination,
+                weights.Strategy, weights.WasFloored);
         }
 
         /// <summary>
