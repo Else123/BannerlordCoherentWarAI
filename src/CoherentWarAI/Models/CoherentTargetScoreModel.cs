@@ -54,9 +54,9 @@ namespace CoherentWarAI.Models
 
             WeightToggles toggles = BuildToggles(settings, targetSettlement, mobileParty);
             ScoreInputs inputs = GatherInputs(targetSettlement, mobileParty, ourStrength, toggles, settings);
-            ScoreWeights weights = ScoreComposer.Compose(inputs, toggles, BuildTuning(settings));
+            ScoreWeights weights = ScoreComposer.Compose(inputs, toggles, BuildTuning(settings, mobileParty.MapFaction));
 
-            RecordDiagnostics(weights, inputs, toggles, ourStrength);
+            RecordDiagnostics(weights, inputs, toggles, mobileParty.MapFaction, ourStrength);
 
             float score = baseScore * weights.Combined;
 
@@ -235,11 +235,11 @@ namespace CoherentWarAI.Models
         /// Tuning values as the composer wants them. The overkill onset is resolved
         /// here because it depends on what the campaign has looked like so far.
         /// </summary>
-        private static ScoreTuning BuildTuning(CoherentWarAISettings settings)
+        private static ScoreTuning BuildTuning(CoherentWarAISettings settings, IFaction ourFaction)
         {
             return new ScoreTuning
             {
-                OverkillOnset = TargetWeights.AdaptiveOnset(settings.OverkillOnset, WarAiStats.TypicalStrengthRatio),
+                OverkillOnset = TargetWeights.AdaptiveOnset(settings.OverkillOnset, WarAiStats.TypicalRatioFor(ourFaction)),
                 OverkillMinFactor = settings.OverkillMinFactor,
                 OverkillSpan = settings.OverkillSpan,
                 FrontFloor = settings.FrontFloor,
@@ -256,7 +256,7 @@ namespace CoherentWarAI.Models
             };
         }
 
-        private static void RecordDiagnostics(ScoreWeights weights, ScoreInputs inputs, WeightToggles toggles, float ourStrength)
+        private static void RecordDiagnostics(ScoreWeights weights, ScoreInputs inputs, WeightToggles toggles, IFaction ourFaction, float ourStrength)
         {
             if (toggles.CountNearbyDefenders && weights.Visibility < 1f)
             {
@@ -264,7 +264,7 @@ namespace CoherentWarAI.Models
             }
             if (toggles.DeGreedTargets)
             {
-                WarAiStats.ObserveStrengthRatio(ourStrength, inputs.DefenderStrength);
+                WarAiStats.ObserveStrengthRatio(ourFaction, ourStrength, inputs.DefenderStrength);
             }
             if (toggles.Holdability)
             {

@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using TaleWorlds.CampaignSystem;
+
 namespace CoherentWarAI.Diagnostics
 {
     /// <summary>
@@ -141,9 +144,35 @@ namespace CoherentWarAI.Diagnostics
         /// meaning the same thing as a campaign ages. Field armies outgrow garrisons
         /// over decades, so a fixed threshold slowly turns into a constant.
         /// </summary>
-        public static float TypicalStrengthRatio { get; private set; } = DefaultTypicalRatio;
-
         private const float DefaultTypicalRatio = 1.5f;
+
+        /// <summary>
+        /// Learned per realm, not globally. A dominant kingdom whose fights are
+        /// routinely lopsided would otherwise drag the threshold up for a small
+        /// faction that never enjoys those odds, so the weak realm would stop
+        /// damping attacks it should still be cautious about - and the reverse for
+        /// a struggling one. Every other piece of this mod reasons per realm; this
+        /// was the exception.
+        /// </summary>
+        private static readonly Dictionary<IFaction, RatioAccumulator> Ratios
+            = new Dictionary<IFaction, RatioAccumulator>();
+
+        private class RatioAccumulator
+        {
+            public float Typical = DefaultTypicalRatio;
+            public float Sum;
+            public int Count;
+        }
+
+        /// <summary>Typical odds this realm has been seeing lately.</summary>
+        public static float TypicalRatioFor(IFaction faction)
+        {
+            if (faction == null)
+            {
+                return DefaultTypicalRatio;
+            }
+            return Ratios.TryGetValue(faction, out RatioAccumulator acc) ? acc.Typical : DefaultTypicalRatio;
+        }
 
         /// <summary>
         /// Forgets what was learned from a previous campaign. The ratio feeds the
@@ -153,23 +182,25 @@ namespace CoherentWarAI.Diagnostics
         /// </summary>
         public static void ResetForNewCampaign()
         {
-            TypicalStrengthRatio = DefaultTypicalRatio;
-            _ratioSum = 0f;
-            _ratioCount = 0;
+            Ratios.Clear();
         }
 
-        private static float _ratioSum;
-        private static int _ratioCount;
-
-        /// <summary>Feeds one observation into the running average.</summary>
-        public static void ObserveStrengthRatio(float ourStrength, float defenderStrength)
+        /// <summary>Feeds one observation into that realm's running average.</summary>
+        public static void ObserveStrengthRatio(IFaction faction, float ourStrength, float defenderStrength)
         {
-            if (ourStrength <= 0f || defenderStrength <= 0f)
+            if (faction == null || ourStrength <= 0f || defenderStrength <= 0f)
             {
                 return;
             }
-            _ratioSum += ourStrength / defenderStrength;
-            _ratioCount++;
+
+            if (!Ratios.TryGetValue(faction, out RatioAccumulator acc))
+            {
+                acc = new RatioAccumulator();
+                Ratios[faction] = acc;
+            }
+
+            acc.Sum += ourStrength / defenderStrength;
+            acc.Count++;
         }
 
         public static void RecordDefenceCorrection()
@@ -237,9 +268,20 @@ namespace CoherentWarAI.Diagnostics
                 "idle defenders sent after bandits: {0}", _banditHunts));
 
             WarAiLog.Write("Effect", string.Format(
-                "defenders vanilla overlooked (nearby relief, player at full weight): {0} targets ({1:P0}); "
-                + "typical odds {2:F2}, so overkill now measured from {3:F2}",
-                _defenceCorrected, Share(_defenceCorrected), TypicalStrengthRatio, TypicalStrengthRatio));
+                "defenders vanilla overlooked (nearby relief, player at full weight): {0} targets ({1:P0})",
+                _defenceCorrected, Share(_defenceCorrected)));
+
+            // Per realm, since a dominant kingdom and a struggling one see quite
+            // different odds and each should judge overkill by its own experience.
+            foreach (KeyValuePair<IFaction, RatioAccumulator> pair in Ratios)
+            {
+                if (pair.Key != null && pair.Value.Typical > DefaultTypicalRatio * 1.1f)
+                {
+                    WarAiLog.Write("Effect", string.Format(
+                        "  {0} typically fights at {1:F2}:1, so overkill is measured from there",
+                        pair.Key.Name, pair.Value.Typical));
+                }
+            }
 
             // Where the hysteresis path breaks: each number is a stage, so the drop
             // between two of them is the answer.
@@ -281,15 +323,21 @@ namespace CoherentWarAI.Diagnostics
             _pursuitHeld = 0;
             _defenceCorrected = 0;
 
-            // Carry the observed odds forward as the new baseline, so the threshold
-            // tracks the campaign rather than resetting each day.
-            if (_ratioCount > 0)
+            // Carry each realm's observed odds forward as its new baseline, so the
+            // threshold tracks the campaign rather than resetting each day.
+            foreach (KeyValuePair<IFaction, RatioAccumulator> pair in Ratios)
             {
-                float observed = _ratioSum / _ratioCount;
+                RatioAccumulator acc = pair.Value;
+                if (acc.Count <= 0)
+                {
+                    continue;
+                }
+
+                float observed = acc.Sum / acc.Count;
                 // Smooth it: one unusual day should nudge the baseline, not redefine it.
-                TypicalStrengthRatio = TypicalStrengthRatio * 0.8f + observed * 0.2f;
-                _ratioSum = 0f;
-                _ratioCount = 0;
+                acc.Typical = acc.Typical * 0.8f + observed * 0.2f;
+                acc.Sum = 0f;
+                acc.Count = 0;
             }
         }
     }

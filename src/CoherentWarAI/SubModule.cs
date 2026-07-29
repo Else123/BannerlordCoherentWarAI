@@ -10,6 +10,18 @@ namespace CoherentWarAI
 {
     public class SubModule : MBSubModuleBase
     {
+        /// <summary>
+        /// Writes out whatever is still buffered. Log lines are flushed on daily and
+        /// weekly ticks, so quitting mid-day - the normal case - would otherwise
+        /// discard everything since the last one, including the very lines a player
+        /// was collecting when they decided to stop and look at them.
+        /// </summary>
+        public override void OnGameEnd(Game game)
+        {
+            base.OnGameEnd(game);
+            WarAiLog.Flush();
+        }
+
         protected override void InitializeGameStarter(Game game, IGameStarter gameStarterObject)
         {
             base.InitializeGameStarter(game, gameStarterObject);
