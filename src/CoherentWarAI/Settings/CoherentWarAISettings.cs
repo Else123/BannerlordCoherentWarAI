@@ -17,6 +17,14 @@ namespace CoherentWarAI.Settings
         public float FrontFloor = TargetWeights.DefaultFrontFloor;
         public float FrontGain = TargetWeights.DefaultFrontGain;
 
+        /// <summary>
+        /// Count everyone who could defend a settlement, not only who is inside it,
+        /// and count the player at full weight rather than vanilla's discount. This
+        /// is what stops an attacker's judgement lurching when the player rides in
+        /// or out of a castle.
+        /// </summary>
+        public bool CountNearbyDefenders = true;
+
         // Commitment hysteresis - stops lords dithering in front of a castle.
         public bool EnableCommitmentHysteresis = true;
         public float EngageRatio = EngagementHysteresis.DefaultEngageRatio;

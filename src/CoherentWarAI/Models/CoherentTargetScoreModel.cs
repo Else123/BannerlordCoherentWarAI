@@ -4,6 +4,7 @@ using CoherentWarAI.Logic;
 using CoherentWarAI.Settings;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.GameComponents;
+using TaleWorlds.CampaignSystem.Map;
 using TaleWorlds.CampaignSystem.Party;
 using TaleWorlds.CampaignSystem.Settlements;
 
@@ -57,11 +58,27 @@ namespace CoherentWarAI.Models
             bool needDefenderEstimate = settings.EnableTargetDeGreed || settings.EnableCoordination;
             float defenderStrength = needDefenderEstimate ? EstimateDefenderStrength(targetSettlement) : 0f;
 
+            // What vanilla could not see: relieving forces nearby, and the player at
+            // full weight rather than discounted. Applied as a correction because
+            // vanilla's own defender figure is buried inside the base score.
+            float wVisibility = 1f;
+            if (settings.CountNearbyDefenders && isOffensive)
+            {
+                float available = EstimateAvailableDefence(targetSettlement, defenderStrength);
+                wVisibility = TargetWeights.DefenderVisibilityCorrection(defenderStrength, available);
+                if (wVisibility < 1f)
+                {
+                    WarAiStats.RecordDefenceCorrection();
+                }
+            }
+
             float wOverkill = 1f;
             float wFront = 1f;
             if (settings.EnableTargetDeGreed)
             {
-                wOverkill = TargetWeights.Overkill(ourStrength, defenderStrength, settings.OverkillOnset, settings.OverkillMinFactor, settings.OverkillSpan);
+                float onset = TargetWeights.AdaptiveOnset(settings.OverkillOnset, WarAiStats.TypicalStrengthRatio);
+                wOverkill = TargetWeights.Overkill(ourStrength, defenderStrength, onset, settings.OverkillMinFactor, settings.OverkillSpan);
+                WarAiStats.ObserveStrengthRatio(ourStrength, defenderStrength);
 
                 CountFrontNeighbors(targetSettlement, mobileParty, out int ownedByUs, out int notOwnedByTarget);
                 wFront = TargetWeights.FrontCoherence(ownedByUs, notOwnedByTarget, settings.FrontFloor, settings.FrontGain);
@@ -105,7 +122,7 @@ namespace CoherentWarAI.Models
                 WarAiStats.RecordPursuitHeld();
             }
 
-            float raw = wOverkill * wFront * wCoord * wStrategy * wCommitment;
+            float raw = wOverkill * wFront * wCoord * wStrategy * wCommitment * wVisibility;
             float combined = StrategicPriority.ApplyWeightFloor(raw, settings.MinimumWeightFloor);
 
             WarAiStats.RecordScore(wOverkill, wFront, wCoord, wStrategy, combined > raw);
@@ -351,6 +368,59 @@ namespace CoherentWarAI.Models
         /// parties present at the settlement), mirroring how vanilla sizes a target's
         /// defenders. Used to decide when extra attacker strength is pure overkill.
         /// </summary>
+        /// <summary>
+        /// Everyone who could realistically fight for this settlement - those inside
+        /// it and any friendly force close enough to intervene - counted at full
+        /// weight, including the player.
+        ///
+        /// Vanilla counts only who is inside, and discounts the player even then.
+        /// A lord standing outside the gate is no less able to defend the place, so
+        /// leaving him out is what makes an attacker's judgement lurch when the
+        /// player rides in or out.
+        /// </summary>
+        private static float EstimateAvailableDefence(Settlement targetSettlement, float countedInside)
+        {
+            IFaction defenderFaction = targetSettlement.MapFaction;
+            if (defenderFaction == null)
+            {
+                return countedInside;
+            }
+
+            // Close enough to reach the walls before an assault is decided.
+            float radius = Campaign.Current.Models.EncounterModel.GetEncounterJoiningRadius * 3f;
+            if (radius <= 0f)
+            {
+                return countedInside;
+            }
+
+            float nearby = 0f;
+            LocatableSearchData<MobileParty> data = MobileParty.StartFindingLocatablesAroundPosition(
+                targetSettlement.GatePosition.ToVec2(), radius);
+
+            for (MobileParty party = MobileParty.FindNextLocatable(ref data);
+                 party != null;
+                 party = MobileParty.FindNextLocatable(ref data))
+            {
+                // Those inside are already counted; garrison and militia cannot leave.
+                if (party?.Party == null || party.CurrentSettlement == targetSettlement)
+                {
+                    continue;
+                }
+                if (party.IsGarrison || party.IsMilitia || party.IsCaravan || party.IsVillager)
+                {
+                    continue;
+                }
+                if (party.MapFaction != defenderFaction || party.Aggressiveness <= 0.01f)
+                {
+                    continue;
+                }
+
+                nearby += party.Party.EstimatedStrength;
+            }
+
+            return countedInside + nearby;
+        }
+
         private static float EstimateDefenderStrength(Settlement targetSettlement)
         {
             float total = 0f;

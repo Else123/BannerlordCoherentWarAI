@@ -41,6 +41,7 @@ namespace CoherentWarAI.Diagnostics
         private static int _rejectedMemoryStale;
         private static int _rejectedOddsTooBad;
         private static int _pursuitHeld;
+        private static int _defenceCorrected;
 
         /// <summary>Records one offensive target evaluation and what each weight did to it.</summary>
         public static void RecordScore(float overkill, float front, float coord, float strategy, bool floored)
@@ -135,6 +136,32 @@ namespace CoherentWarAI.Diagnostics
             _gatewayDefence++;
         }
 
+        /// <summary>
+        /// Typical attacker-to-defender ratio seen lately, used to keep "overwhelming"
+        /// meaning the same thing as a campaign ages. Field armies outgrow garrisons
+        /// over decades, so a fixed threshold slowly turns into a constant.
+        /// </summary>
+        public static float TypicalStrengthRatio { get; private set; } = 1.5f;
+
+        private static float _ratioSum;
+        private static int _ratioCount;
+
+        /// <summary>Feeds one observation into the running average.</summary>
+        public static void ObserveStrengthRatio(float ourStrength, float defenderStrength)
+        {
+            if (ourStrength <= 0f || defenderStrength <= 0f)
+            {
+                return;
+            }
+            _ratioSum += ourStrength / defenderStrength;
+            _ratioCount++;
+        }
+
+        public static void RecordDefenceCorrection()
+        {
+            _defenceCorrected++;
+        }
+
         public static void RecordPursuitHeld()
         {
             _pursuitHeld++;
@@ -194,6 +221,11 @@ namespace CoherentWarAI.Diagnostics
             WarAiLog.Write("Effect", string.Format(
                 "idle defenders sent after bandits: {0}", _banditHunts));
 
+            WarAiLog.Write("Effect", string.Format(
+                "defenders vanilla overlooked (nearby relief, player at full weight): {0} targets ({1:P0}); "
+                + "typical odds {2:F2}, so overkill now measured from {3:F2}",
+                _defenceCorrected, Share(_defenceCorrected), TypicalStrengthRatio, TypicalStrengthRatio));
+
             // Where the hysteresis path breaks: each number is a stage, so the drop
             // between two of them is the answer.
             WarAiLog.Write("Effect", string.Format(
@@ -232,6 +264,18 @@ namespace CoherentWarAI.Diagnostics
             _rejectedMemoryStale = 0;
             _rejectedOddsTooBad = 0;
             _pursuitHeld = 0;
+            _defenceCorrected = 0;
+
+            // Carry the observed odds forward as the new baseline, so the threshold
+            // tracks the campaign rather than resetting each day.
+            if (_ratioCount > 0)
+            {
+                float observed = _ratioSum / _ratioCount;
+                // Smooth it: one unusual day should nudge the baseline, not redefine it.
+                TypicalStrengthRatio = TypicalStrengthRatio * 0.8f + observed * 0.2f;
+                _ratioSum = 0f;
+                _ratioCount = 0;
+            }
         }
     }
 }

@@ -34,6 +34,51 @@ namespace CoherentWarAI.Tests
             Assert.Equal(expected, actual, 4);
         }
 
+        [Theory]
+        [InlineData(500f, 500f, 1f)]        // nothing overlooked
+        [InlineData(500f, 1000f, 0.5f)]     // half the defence was invisible
+        [InlineData(500f, 2000f, 0.25f)]    // a relieving army stood just outside
+        [InlineData(500f, 400f, 1f)]        // never makes a target MORE inviting
+        [InlineData(50f, 200f, 0.5f)]       // both floored at 100 first
+        public void DefenderVisibilityCorrection_CountsWhoCouldActuallyFight(
+            float asVanillaCountedThem, float allWhoCouldDefend, float expected)
+        {
+            Assert.Equal(expected, TargetWeights.DefenderVisibilityCorrection(
+                asVanillaCountedThem, allWhoCouldDefend), 4);
+        }
+
+        [Fact]
+        public void SteppingOutOfACastleNoLongerInvitesAnAttack()
+        {
+            // The exploit: vanilla counts the player at half strength, and less
+            // again while inside, so walking out made a castle look weaker than it
+            // was. Counting everyone who could fight gives the same answer either
+            // way - which is the point.
+            const float garrison = 400f;
+            const float playerParty = 600f;
+
+            float vanillaSawPlayerInside = garrison + playerParty * 0.4f;
+            float vanillaSawPlayerOutside = garrison;
+            float trulyAvailable = garrison + playerParty;
+
+            float correctedInside = TargetWeights.DefenderVisibilityCorrection(vanillaSawPlayerInside, trulyAvailable);
+            float correctedOutside = TargetWeights.DefenderVisibilityCorrection(vanillaSawPlayerOutside, trulyAvailable);
+
+            Assert.True(correctedOutside < correctedInside,
+                "standing outside must not make the castle look like an easier target");
+            Assert.True(correctedOutside < 0.5f, $"the overlooked force should weigh heavily, got {correctedOutside}");
+        }
+
+        [Theory]
+        [InlineData(1.5f, 1.2f, 1.5f)]   // quiet campaign -> configured value stands
+        [InlineData(1.5f, 2.4f, 2.4f)]   // armies have outgrown garrisons -> threshold follows
+        [InlineData(1.5f, 1.5f, 1.5f)]
+        public void AdaptiveOnset_TracksTheCampaignButNeverLoosens(
+            float configuredOnset, float typicalRatio, float expected)
+        {
+            Assert.Equal(expected, TargetWeights.AdaptiveOnset(configuredOnset, typicalRatio), 4);
+        }
+
         // frontFloor=0.6, frontGain=0.9 (documented defaults).
         [Theory]
         [InlineData(0, 4, 0.6f, 0.9f, 0.6f)]    // ownShare=0 -> floor
