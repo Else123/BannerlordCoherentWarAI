@@ -73,6 +73,13 @@ namespace CoherentWarAI.Settings
         public bool EnableEnemyFocus = true;
         public float PrimaryEnemyBoost = StrategicPriority.DefaultPrimaryEnemyBoost;
         public float SecondaryEnemyDamp = StrategicPriority.DefaultSecondaryEnemyDamp;
+
+        /// <summary>
+        /// How much a shared border counts when ranking enemies, on top of their
+        /// strength. Strength leads: a realm juggling a dozen wars should press the
+        /// one against someone who could actually hurt it.
+        /// </summary>
+        public float BorderWeight = StrategicPriority.DefaultBorderWeight;
         /// <summary>
         /// Off by default. Measured over two playtests it penalised 91% of all
         /// targets and rewarded none: a conquest target is enemy ground by

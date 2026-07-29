@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using CoherentWarAI.Diagnostics;
+using CoherentWarAI.Logic;
 using CoherentWarAI.Settings;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Party;
@@ -78,7 +79,15 @@ namespace CoherentWarAI.Behaviors
                 }
 
                 IFaction best = null;
-                int bestContact = -1;
+                float bestScore = 0f;
+                int bestContact = 0;
+                float bestStrength = 0f;
+
+                // Fallback for a realm whose wars share no land border at all -
+                // fought purely at sea, or against landless clans. Without it every
+                // one of its wars would rank secondary for want of a comparison.
+                IFaction strongestReachless = null;
+                float strongestReachlessStrength = -1f;
 
                 for (int i = 0; i < kingdom.FactionsAtWarWith.Count; i++)
                 {
@@ -88,24 +97,35 @@ namespace CoherentWarAI.Behaviors
                         continue;
                     }
 
-                    // Starting below zero means a realm whose wars share no land
-                    // border at all - fought purely at sea, or by a landless clan -
-                    // still names one. Leaving it unset would mark every one of its
-                    // wars secondary, damping a kingdom's only war for lack of a
-                    // rival to compare it against.
                     int contact = CountSharedBorders(kingdom, enemy);
-                    if (contact > bestContact)
+                    float strength = enemy.CurrentTotalStrength;
+                    float score = StrategicPriority.PrimaryEnemyScore(strength, contact, settings.BorderWeight);
+
+                    if (score > bestScore)
                     {
-                        bestContact = contact;
+                        bestScore = score;
                         best = enemy;
+                        bestContact = contact;
+                        bestStrength = strength;
                     }
+                    else if (score <= 0f && strength > strongestReachlessStrength)
+                    {
+                        strongestReachlessStrength = strength;
+                        strongestReachless = enemy;
+                    }
+                }
+
+                if (best == null)
+                {
+                    best = strongestReachless;
                 }
 
                 if (best != null)
                 {
                     fresh[kingdom] = best;
-                    WarAiLog.Write("Focus", string.Format("{0} concentrates on {1} ({2} shared borders)",
-                        kingdom.Name, best.Name, bestContact));
+                    WarAiLog.Write("Focus", string.Format(
+                        "{0} concentrates on {1} (strength {2:F0}, {3} shared borders) out of {4} wars",
+                        kingdom.Name, best.Name, bestStrength, bestContact, kingdom.FactionsAtWarWith.Count));
                 }
             }
 

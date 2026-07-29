@@ -5,6 +5,30 @@ namespace CoherentWarAI.Tests
 {
     public class StrategicPriorityTests
     {
+        // borderWeight = 0.15
+        [Theory]
+        [InlineData(10000f, 1, 11500f)]     // strong but barely reachable
+        [InlineData(3000f, 10, 7500f)]      // weaker, long shared frontier
+        [InlineData(10000f, 0, 0f)]         // no border -> cannot be marched on
+        [InlineData(0f, 5, 0f)]             // nothing there
+        [InlineData(500f, 2, 650f)]         // a minor faction stays minor
+        public void PrimaryEnemyScore_LetsStrengthLeadButRequiresReach(
+            float enemyStrength, int sharedBorders, float expected)
+        {
+            Assert.Equal(expected, StrategicPriority.PrimaryEnemyScore(
+                enemyStrength, sharedBorders, StrategicPriority.DefaultBorderWeight), 1);
+        }
+
+        [Fact]
+        public void ABigWarOutranksASkirmishAgainstAMinorFaction()
+        {
+            // A realm at a dozen simultaneous wars, most against landless clans,
+            // should press the one that could actually hurt it.
+            float kingdom = StrategicPriority.PrimaryEnemyScore(12000f, 4, StrategicPriority.DefaultBorderWeight);
+            float minorFaction = StrategicPriority.PrimaryEnemyScore(600f, 8, StrategicPriority.DefaultBorderWeight);
+            Assert.True(kingdom > minorFaction * 5f, $"{kingdom} vs {minorFaction}");
+        }
+
         [Theory]
         [InlineData(true, 1.25f, 0.8f, 1.25f)]
         [InlineData(false, 1.25f, 0.8f, 0.8f)]

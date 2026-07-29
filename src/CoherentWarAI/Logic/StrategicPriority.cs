@@ -31,6 +31,30 @@ namespace CoherentWarAI.Logic
         /// <summary>Penalty for a conquest that juts out into enemy ground.</summary>
         public const float DefaultSalientPenalty = 0.4f;
 
+        /// <summary>How much a shared border adds on top of an enemy's weight.</summary>
+        public const float DefaultBorderWeight = 0.15f;
+
+        /// <summary>
+        /// Ranks an enemy for the realm's attention. The war that matters is the one
+        /// against someone who could actually hurt us, so strength decides.
+        ///
+        /// Measured in a long campaign, realms sit at nine to fourteen simultaneous
+        /// wars, most of them against minor factions with no territory. Ranking by
+        /// shared border alone treated those as comparable to a neighbouring kingdom
+        /// fielding twenty parties. An enemy we share no border with scores nothing:
+        /// however dangerous, we cannot march on them.
+        /// </summary>
+        /// <param name="enemyStrength">The enemy's total strength.</param>
+        /// <param name="sharedBorders">Our fortifications adjoining theirs.</param>
+        public static float PrimaryEnemyScore(float enemyStrength, int sharedBorders, float borderWeight)
+        {
+            if (sharedBorders <= 0 || enemyStrength <= 0f)
+            {
+                return 0f;
+            }
+            return enemyStrength * (1f + Math.Max(0f, borderWeight) * sharedBorders);
+        }
+
         /// <summary>
         /// Concentrates a realm on one enemy at a time. Secondary enemies are damped
         /// rather than ignored: a kingdom must still be able to answer a second
