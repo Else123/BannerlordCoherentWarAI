@@ -49,10 +49,14 @@ namespace CoherentWarAI.Diagnostics
         /// <summary>Starts a fresh log for this session.</summary>
         public static void Start()
         {
-            if (!Enabled || _failed)
+            if (!Enabled)
             {
                 return;
             }
+
+            // A failure in a previous session should not disable logging for the
+            // rest of the process - whatever locked the file may well be gone.
+            _failed = false;
 
             try
             {

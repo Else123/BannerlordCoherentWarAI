@@ -73,6 +73,12 @@ namespace CoherentWarAI.Behaviors
             // an army again. Either feature keeps this running.
             if (settings == null || (!settings.EnableDefensivePosture && !settings.EnableMarshalDoctrine))
             {
+                // Clear on the way out, or yesterday's appointments linger forever
+                // and keep those lords excluded from other duties.
+                if (_marshals.Count > 0)
+                {
+                    _marshals = new HashSet<MobileParty>();
+                }
                 return;
             }
 

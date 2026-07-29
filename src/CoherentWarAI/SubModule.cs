@@ -38,12 +38,16 @@ namespace CoherentWarAI
                 campaignStarter.AddModel(new CoherentGarrisonModel());
                 campaignStarter.AddModel(new CoherentArmyManagementModel());
 
-                campaignStarter.AddBehavior(new SettingsSyncBehavior());
-                campaignStarter.AddBehavior(new ChokepointMapBehavior());
-                campaignStarter.AddBehavior(new WarCoordinatorBehavior());
-                campaignStarter.AddBehavior(new WarPostureBehavior());
-                campaignStarter.AddBehavior(new BanditHuntBehavior());
+                // Registered in reverse of the order they must run in: the engine
+                // prepends event listeners, so the last one registered fires first.
+                // Settings must be applied before anything reads them, so settings
+                // sync is registered last.
                 campaignStarter.AddBehavior(new OutcomeLogBehavior());
+                campaignStarter.AddBehavior(new BanditHuntBehavior());
+                campaignStarter.AddBehavior(new WarPostureBehavior());
+                campaignStarter.AddBehavior(new WarCoordinatorBehavior());
+                campaignStarter.AddBehavior(new ChokepointMapBehavior());
+                campaignStarter.AddBehavior(new SettingsSyncBehavior());
             }
         }
     }

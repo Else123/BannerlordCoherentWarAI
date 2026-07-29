@@ -48,8 +48,8 @@ namespace CoherentWarAI.Settings
         [SettingPropertyGroup(DefenceGroup, GroupOrder = 0)]
         public int MinimumDefenders { get; set; } = PosturePlanner.DefaultMinimumDefenders;
 
-        [SettingPropertyFloatingInteger("Weight of a lord's Valor", 0f, 1f, "0.00", Order = 3, RequireRestart = false,
-            HintText = "How strongly the Valor trait decides who leads attacks. 0 means only strength counts.")]
+        [SettingPropertyFloatingInteger("Weight of a lord's Valor", 0f, 0.45f, "0.00", Order = 3, RequireRestart = false,
+            HintText = "How strongly the Valor trait decides who leads attacks. 0 means only strength counts. Capped below 0.5, above which the most cautious lords would score zero regardless of their troops and could no longer be ranked at all.")]
         [SettingPropertyGroup(DefenceGroup, GroupOrder = 0)]
         public float ValorWeight { get; set; } = PosturePlanner.DefaultValorWeight;
 
@@ -85,8 +85,8 @@ namespace CoherentWarAI.Settings
         [SettingPropertyGroup(TargetGroup, GroupOrder = 1)]
         public float FrontGain { get; set; } = TargetWeights.DefaultFrontGain;
 
-        [SettingPropertyFloatingInteger("Minimum score floor", 0.05f, 1f, "0.00", Order = 5, RequireRestart = false,
-            HintText = "Least this mod may reduce a vanilla score to, however many weights stack. Attacks compete with defending and patrolling, so an over-damped attack would lose to standing around. Cannot be set to zero - that is the guarantee this setting exists to provide.")]
+        [SettingPropertyFloatingInteger("Minimum score floor", 0.05f, 0.9f, "0.00", Order = 5, RequireRestart = false,
+            HintText = "Least this mod may reduce a vanilla score to, however many weights stack. Attacks compete with defending and patrolling, so an over-damped attack would lose to standing around. Zero is unreachable because that guarantee is the point; 1 is unreachable because it would clamp away every damping weight and disable half the mod.")]
         [SettingPropertyGroup(TargetGroup, GroupOrder = 1)]
         public float MinimumWeightFloor { get; set; } = 0.25f;
 

@@ -28,6 +28,10 @@ namespace CoherentWarAI.Behaviors
         {
             Sync();
 
+            // Statistics learned from a previous campaign in this process would
+            // otherwise carry over and change scoring here.
+            WarAiStats.ResetForNewCampaign();
+
             // The startup line is written before the settings page is necessarily
             // available, so it can report defaults rather than what is configured.
             // Restate it once the real values are in.

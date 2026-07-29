@@ -55,7 +55,9 @@ namespace CoherentWarAI.Models
             // Each weight is gated by its own setting. They must not be nested
             // inside one another: the settings page presents them as independent
             // switches, so turning one off has to leave the others working.
-            bool needDefenderEstimate = settings.EnableTargetDeGreed || settings.EnableCoordination;
+            bool needDefenderEstimate = settings.EnableTargetDeGreed
+                || settings.EnableCoordination
+                || settings.CountNearbyDefenders;
             float defenderStrength = needDefenderEstimate ? EstimateDefenderStrength(targetSettlement) : 0f;
 
             // What vanilla could not see: relieving forces nearby, and the player at
@@ -64,7 +66,7 @@ namespace CoherentWarAI.Models
             float wVisibility = 1f;
             if (settings.CountNearbyDefenders && isOffensive)
             {
-                float available = EstimateAvailableDefence(targetSettlement, defenderStrength);
+                float available = EstimateAvailableDefence(targetSettlement, mobileParty, defenderStrength);
                 wVisibility = TargetWeights.DefenderVisibilityCorrection(defenderStrength, available);
                 if (wVisibility < 1f)
                 {
@@ -350,8 +352,32 @@ namespace CoherentWarAI.Models
             }
             else
             {
-                CountFrontNeighbors(settlement, mobileParty, out int ownedByUs, out int notOwnedByUs);
-                gateway = GarrisonPlanner.ChokepointScore(notOwnedByUs, ownedByUs, settings.ChokepointSaturation);
+                // Counted here rather than via CountFrontNeighbors: that one is
+                // written for rating an ENEMY settlement, so it only counts
+                // neighbours not belonging to the target's faction. This settlement
+                // is ours, which means that filter excludes precisely our own
+                // neighbours - it would return zero every time and the fallback
+                // would silently do nothing.
+                int foreign = 0;
+                int friendly = 0;
+                foreach (Settlement neighbor in SettlementNeighbors.Of(settlement))
+                {
+                    IFaction neighborFaction = neighbor.MapFaction;
+                    if (neighborFaction == null)
+                    {
+                        continue;
+                    }
+                    if (neighborFaction == settlement.MapFaction)
+                    {
+                        friendly++;
+                    }
+                    else
+                    {
+                        foreign++;
+                    }
+                }
+
+                gateway = GarrisonPlanner.ChokepointScore(foreign, friendly, settings.ChokepointSaturation);
             }
 
             if (gateway <= 0f)
@@ -364,8 +390,12 @@ namespace CoherentWarAI.Models
         }
 
         /// <summary>
-        /// Local defender strength estimate (garrison + militia + aggressive lord
-        /// parties present at the settlement), mirroring how vanilla sizes a target's
+        /// Local defender strength estimate: garrison, militia, and lord parties of
+        /// the owning faction present at the settlement.
+        ///
+        /// Close to vanilla's own figure but not identical - vanilla counts any
+        /// aggressive party present regardless of allegiance, which credits a target
+        /// with allied visitors and passing third parties. This counts only who
         /// defenders. Used to decide when extra attacker strength is pure overkill.
         /// </summary>
         /// <summary>
@@ -378,7 +408,7 @@ namespace CoherentWarAI.Models
         /// leaving him out is what makes an attacker's judgement lurch when the
         /// player rides in or out.
         /// </summary>
-        private static float EstimateAvailableDefence(Settlement targetSettlement, float countedInside)
+        private static float EstimateAvailableDefence(Settlement targetSettlement, MobileParty scoringParty, float countedInside)
         {
             IFaction defenderFaction = targetSettlement.MapFaction;
             if (defenderFaction == null)
@@ -389,6 +419,16 @@ namespace CoherentWarAI.Models
             // Close enough to reach the walls before an assault is decided.
             float radius = Campaign.Current.Models.EncounterModel.GetEncounterJoiningRadius * 3f;
             if (radius <= 0f)
+            {
+                return countedInside;
+            }
+
+            // Skip the spatial query for targets this lord could not reach soon
+            // anyway - vanilla gates its own relief search the same way, and without
+            // it every candidate settlement triggers a scan on the hot path.
+            float reach = Campaign.Current.GetAverageDistanceBetweenClosestTwoTownsWithNavigationType(
+                MobileParty.NavigationType.All) * 3f;
+            if (reach > 0f && targetSettlement.Position.Distance(scoringParty.Position) > reach)
             {
                 return countedInside;
             }

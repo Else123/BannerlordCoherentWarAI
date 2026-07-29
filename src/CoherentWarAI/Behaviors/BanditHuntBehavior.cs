@@ -223,8 +223,17 @@ namespace CoherentWarAI.Behaviors
                     break;
             }
 
+            // Objectives only exist because this mod assigns them - vanilla never
+            // calls SetPartyObjective at all. With the posture feature off nobody is
+            // ever Defensive, so requiring it would make bandit hunting a switch
+            // that silently does nothing. Then an unoccupied lord is simply one
+            // vanilla has given no objective.
+            bool countsAsDefensive = settings.EnableDefensivePosture
+                ? party.Objective == MobileParty.PartyObjective.Defensive
+                : party.Objective != MobileParty.PartyObjective.Aggressive;
+
             return BanditHuntPlanner.LordIsAvailable(
-                party.Objective == MobileParty.PartyObjective.Defensive,
+                countsAsDefensive,
                 party.Army != null,
                 WarPostureBehavior.IsMarshal(party),
                 hasOwnObjective);

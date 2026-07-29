@@ -141,7 +141,22 @@ namespace CoherentWarAI.Diagnostics
         /// meaning the same thing as a campaign ages. Field armies outgrow garrisons
         /// over decades, so a fixed threshold slowly turns into a constant.
         /// </summary>
-        public static float TypicalStrengthRatio { get; private set; } = 1.5f;
+        public static float TypicalStrengthRatio { get; private set; } = DefaultTypicalRatio;
+
+        private const float DefaultTypicalRatio = 1.5f;
+
+        /// <summary>
+        /// Forgets what was learned from a previous campaign. The ratio feeds the
+        /// overkill threshold on the scoring path, so carrying one campaign's power
+        /// curve into another would change AI behaviour for reasons that have
+        /// nothing to do with the game being played.
+        /// </summary>
+        public static void ResetForNewCampaign()
+        {
+            TypicalStrengthRatio = DefaultTypicalRatio;
+            _ratioSum = 0f;
+            _ratioCount = 0;
+        }
 
         private static float _ratioSum;
         private static int _ratioCount;

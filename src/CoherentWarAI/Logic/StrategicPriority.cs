@@ -163,11 +163,21 @@ namespace CoherentWarAI.Logic
         /// </summary>
         public static float ApplyWeightFloor(float combinedWeight, float floor)
         {
-            if (combinedWeight < 0f)
+            float limit = floor > 0f ? floor : 0f;
+
+            // Anything not a usable number falls back to the floor rather than
+            // propagating. NaN compares false against everything, so a plain
+            // less-than test would pass it straight through - and a NaN score does
+            // not merely rank badly, it silently corrupts every comparison the AI
+            // makes with it. Strength values can reach infinity in a long campaign,
+            // and infinity over infinity is NaN.
+            if (float.IsNaN(combinedWeight) || float.IsInfinity(combinedWeight))
             {
-                return 0f;
+                return limit;
             }
-            float limit = Math.Max(0f, floor);
+
+            // Negative input is nonsensical but must still honour the floor: this
+            // function exists so a score never disappears entirely.
             return combinedWeight < limit ? limit : combinedWeight;
         }
     }

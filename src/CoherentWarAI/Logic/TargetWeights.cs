@@ -76,11 +76,11 @@ namespace CoherentWarAI.Logic
                 return 1f;
             }
             float t = (r - onset) / span;
-            if (t >= 1f)
-            {
-                return minFactor;
-            }
-            return 1f + (minFactor - 1f) * t;
+            float result = t >= 1f ? minFactor : 1f + (minFactor - 1f) * t;
+
+            // Clamped like its sibling weights: these values come from settings, and
+            // a weight is a multiplier onto a score, never a way to negate one.
+            return result < 0f ? 0f : result;
         }
 
         /// <summary>
@@ -127,7 +127,8 @@ namespace CoherentWarAI.Logic
             {
                 ownShare = 1f;
             }
-            return frontFloor + frontGain * ownShare;
+            float result = frontFloor + frontGain * ownShare;
+            return result < 0f ? 0f : result;
         }
     }
 }

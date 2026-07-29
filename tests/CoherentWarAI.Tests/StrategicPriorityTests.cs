@@ -128,12 +128,23 @@ namespace CoherentWarAI.Tests
         [InlineData(0.5f, 0.25f, 0.5f)]
         [InlineData(0.1f, 0.25f, 0.25f)]   // floored
         [InlineData(0f, 0.25f, 0.25f)]
-        [InlineData(-1f, 0.25f, 0f)]       // nonsensical input
+        [InlineData(-1f, 0.25f, 0.25f)]    // nonsensical input still honours the floor
         [InlineData(0.1f, 0f, 0.1f)]       // floor disabled
         public void ApplyWeightFloor_KeepsAnOffensiveOnTheTable(
             float combinedWeight, float floor, float expected)
         {
             Assert.Equal(expected, StrategicPriority.ApplyWeightFloor(combinedWeight, floor), 4);
+        }
+
+        [Fact]
+        public void ApplyWeightFloor_NeverPropagatesAnUnusableNumber()
+        {
+            // NaN compares false against everything, so a plain less-than test would
+            // pass it straight through - and a NaN score does not rank badly, it
+            // corrupts every comparison made with it.
+            Assert.Equal(0.25f, StrategicPriority.ApplyWeightFloor(float.NaN, 0.25f), 4);
+            Assert.Equal(0.25f, StrategicPriority.ApplyWeightFloor(float.PositiveInfinity, 0.25f), 4);
+            Assert.Equal(0.25f, StrategicPriority.ApplyWeightFloor(float.NegativeInfinity, 0.25f), 4);
         }
 
         [Fact]
