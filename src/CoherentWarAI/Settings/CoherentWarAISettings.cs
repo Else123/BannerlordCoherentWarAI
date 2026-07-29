@@ -153,6 +153,15 @@ namespace CoherentWarAI.Settings
         /// <summary>Most that reports may raise a settlement's defensive pull.</summary>
         public float SightingMaxUrgency = 1.5f;
 
+        /// <summary>
+        /// Let a party's scout decide how far it sees and how much its reports are
+        /// worth. Off means every party observes equally well, which is what vanilla
+        /// effectively does for the AI.
+        /// </summary>
+        public bool EnableScoutSkill = true;
+        public float ScoutingReachBonus = ScoutingQuality.DefaultReachBonus;
+        public float ScoutingMinimumConfidence = ScoutingQuality.DefaultMinimumConfidence;
+
         // Bandit hunting - idle defenders police the realm.
         public bool EnableBanditHunting = true;
         public float BanditMaxThreatRatio = BanditHuntPlanner.DefaultMaxThreatRatio;

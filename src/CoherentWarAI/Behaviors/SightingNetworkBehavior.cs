@@ -3,9 +3,11 @@ using CoherentWarAI.Diagnostics;
 using CoherentWarAI.Logic;
 using CoherentWarAI.Settings;
 using TaleWorlds.CampaignSystem;
+using TaleWorlds.CampaignSystem.CharacterDevelopment;
 using TaleWorlds.CampaignSystem.Map;
 using TaleWorlds.CampaignSystem.Party;
 using TaleWorlds.CampaignSystem.Settlements;
+using TaleWorlds.Core;
 
 namespace CoherentWarAI.Behaviors
 {
@@ -33,6 +35,9 @@ namespace CoherentWarAI.Behaviors
 
             /// <summary>Whether that force was visibly committed to something when seen.</summary>
             public bool WasTiedDown;
+
+            /// <summary>What the observer's scout was worth, 0..1.</summary>
+            public float Confidence;
 
             public CampaignTime When;
         }
@@ -102,6 +107,24 @@ namespace CoherentWarAI.Behaviors
         }
 
         /// <summary>
+        /// The Scouting skill of whoever scouts for this party - its designated
+        /// scout if it has one, otherwise its leader, who is doing the job himself
+        /// whether he is suited to it or not.
+        /// </summary>
+        private static float ScoutingSkillOf(MobileParty party, CoherentWarAISettings settings)
+        {
+            if (!settings.EnableScoutSkill)
+            {
+                // Treated as thoroughly competent, so the feature switches off into
+                // uniform behaviour rather than into universal blindness.
+                return ScoutingQuality.AccomplishedSkill;
+            }
+
+            Hero scout = party.EffectiveScout ?? party.LeaderHero;
+            return scout?.GetSkillValue(DefaultSkills.Scouting) ?? 0f;
+        }
+
+        /// <summary>
         /// Works out what each realm believes about its enemies being committed
         /// elsewhere, from what its own scouts reported.
         ///
@@ -134,8 +157,10 @@ namespace CoherentWarAI.Behaviors
                     fresh[sighting.Observer] = beliefs;
                 }
 
+                // Weighted by how good the scout was: a doubtful report of an army
+                // being pinned down is a weaker basis for staking a campaign on.
                 beliefs.TryGetValue(sighting.Seen, out float running);
-                beliefs[sighting.Seen] = running + sighting.EnemyStrength;
+                beliefs[sighting.Seen] = running + sighting.EnemyStrength * sighting.Confidence;
             }
 
             // Convert the observed totals into shares of each enemy's known size.
@@ -196,7 +221,7 @@ namespace CoherentWarAI.Behaviors
         /// </summary>
         private static void RecordNewSightings(CoherentWarAISettings settings, float distanceUnit)
         {
-            float spotRadius = distanceUnit * settings.SightingSpotRadiusFactor;
+            float baseRadius = distanceUnit * settings.SightingSpotRadiusFactor;
 
             foreach (MobileParty observer in MobileParty.AllLordParties)
             {
@@ -204,6 +229,14 @@ namespace CoherentWarAI.Behaviors
                 {
                     continue;
                 }
+
+                // A party sees as far as whoever scouts for it. Vanilla applies this
+                // to the player's sight range but not to AI decisions, so an army
+                // led by a gifted scout currently notices no more than one led by
+                // nobody in particular.
+                float scouting = ScoutingSkillOf(observer, settings);
+                float spotRadius = baseRadius * ScoutingQuality.ReachMultiplier(scouting, settings.ScoutingReachBonus);
+                float confidence = ScoutingQuality.Confidence(scouting, settings.ScoutingMinimumConfidence);
 
                 LocatableSearchData<MobileParty> data = MobileParty.StartFindingLocatablesAroundPosition(
                     observer.Position.ToVec2(), spotRadius);
@@ -244,6 +277,7 @@ namespace CoherentWarAI.Behaviors
                         Where = seen.Position,
                         EnemyStrength = strength,
                         WasTiedDown = WarCoordinatorBehavior.IsTiedDown(seen),
+                        Confidence = confidence,
                         When = CampaignTime.Now
                     });
                 }
@@ -293,7 +327,8 @@ namespace CoherentWarAI.Behaviors
                     }
 
                     total += SightingNetwork.ThreatToPlace(
-                        sighting.EnemyStrength, distance, reach, hours, settings.SightingLifetimeHours);
+                        sighting.EnemyStrength, distance, reach, hours, settings.SightingLifetimeHours)
+                        * sighting.Confidence;
                 }
 
                 if (total > 0f)

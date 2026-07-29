@@ -29,11 +29,13 @@
     <Compile Include="..\..\src\CoherentWarAI\Logic\StrategicPriority.cs" Link="Logic\StrategicPriority.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\ForceCommitment.cs" Link="Logic\ForceCommitment.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\ScoreComposer.cs" Link="Logic\ScoreComposer.cs" />
+    <Compile Include="..\..\src\CoherentWarAI\Logic\ScoutingQuality.cs" Link="Logic\ScoutingQuality.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\SightingNetwork.cs" Link="Logic\SightingNetwork.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\BanditHuntPlanner.cs" Link="Logic\BanditHuntPlanner.cs" />
   </ItemGroup>
 
 </Project>
+
 
 
 
