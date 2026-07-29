@@ -9,6 +9,7 @@ namespace CoherentWarAI.Logic
         public bool EnemyFocus;
         public bool Holdability;
         public bool CommitmentStickiness;
+        public bool ExploitDistraction;
 
         /// <summary>
         /// Whether anything enabled needs the defender estimate.
@@ -75,6 +76,9 @@ namespace CoherentWarAI.Logic
 
         public int HoldabilityFriendlyNeighbours;
         public int HoldabilityHostileNeighbours;
+
+        /// <summary>Share of the target owner's strength tied up elsewhere, 0..1.</summary>
+        public float EnemyDistraction;
     }
 
     /// <summary>The tuning values, lifted out of settings.</summary>
@@ -94,6 +98,8 @@ namespace CoherentWarAI.Logic
         public float SalientPenalty;
         public float PursuitStickiness;
         public float MinimumWeightFloor;
+        public float DistractionOnset;
+        public float DistractionExposureBonus;
     }
 
     /// <summary>Each weight separately, plus the product actually applied.</summary>
@@ -105,6 +111,9 @@ namespace CoherentWarAI.Logic
         public float Coordination;
         public float Strategy;
         public float Commitment;
+
+        /// <summary>How much the owner being busy elsewhere raises this target's appeal.</summary>
+        public float Exposure;
 
         /// <summary>The holdability part of Strategy, kept for diagnostics.</summary>
         public float HoldabilityBias;
@@ -142,8 +151,18 @@ namespace CoherentWarAI.Logic
                 Coordination = 1f,
                 Strategy = 1f,
                 Commitment = 1f,
+                Exposure = 1f,
                 HoldabilityBias = 1f
             };
+
+            // Strike where the enemy cannot answer. A realm that has thrown its host
+            // at a siege of its own cannot also hold its border, and that opening is
+            // the difference between a deliberate campaign and an opportunistic one.
+            if (toggles.ExploitDistraction)
+            {
+                weights.Exposure = ForceCommitment.ExposureBonus(
+                    inputs.EnemyDistraction, tuning.DistractionOnset, tuning.DistractionExposureBonus);
+            }
 
             // What vanilla could not see: relief close enough to intervene, and the
             // player at full weight rather than discounted.
@@ -195,7 +214,7 @@ namespace CoherentWarAI.Logic
             }
 
             weights.Raw = weights.Visibility * weights.Overkill * weights.Front
-                * weights.Coordination * weights.Strategy * weights.Commitment;
+                * weights.Coordination * weights.Strategy * weights.Commitment * weights.Exposure;
 
             // Floored here rather than by the caller, so no future caller can forget
             // to - the guarantee that an offensive never disappears entirely only

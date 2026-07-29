@@ -124,6 +124,11 @@ namespace CoherentWarAI.Settings
         public bool EnableGatewayDefense = true;
         public float GatewayDefenseGain = ClaimPlanner.DefaultGatewayDefenseGain;
 
+        // Strike where the enemy cannot answer.
+        public bool EnableDistractionExploit = true;
+        public float DistractionOnset = ForceCommitment.DefaultDistractionOnset;
+        public float DistractionExposureBonus = ForceCommitment.DefaultExposureBonus;
+
         // Sighting network - word of an enemy force travels between lords.
         public bool EnableSightingNetwork = true;
         public float SightingRelaySpeed = SightingNetwork.DefaultRelaySpeed;

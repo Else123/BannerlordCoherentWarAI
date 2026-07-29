@@ -159,7 +159,8 @@ namespace CoherentWarAI.Models
                 Coordination = settings.EnableCoordination,
                 EnemyFocus = settings.EnableEnemyFocus && factionsKnown,
                 Holdability = settings.EnableHoldability && mobileParty.MapFaction != null,
-                CommitmentStickiness = settings.EnableCommitmentHysteresis
+                CommitmentStickiness = settings.EnableCommitmentHysteresis,
+                ExploitDistraction = settings.EnableDistractionExploit && targetSettlement.MapFaction != null
             };
         }
 
@@ -220,6 +221,11 @@ namespace CoherentWarAI.Models
                 }
             }
 
+            if (toggles.ExploitDistraction)
+            {
+                inputs.EnemyDistraction = WarCoordinatorBehavior.GetDistractionRatio(targetSettlement.MapFaction);
+            }
+
             if (toggles.NeedsHoldabilityNeighbours)
             {
                 CountHoldabilityNeighbors(targetSettlement, mobileParty.MapFaction,
@@ -252,7 +258,9 @@ namespace CoherentWarAI.Models
                 ConsolidationBonus = settings.ConsolidationBonus,
                 SalientPenalty = settings.SalientPenalty,
                 PursuitStickiness = settings.PursuitStickiness,
-                MinimumWeightFloor = settings.MinimumWeightFloor
+                MinimumWeightFloor = settings.MinimumWeightFloor,
+                DistractionOnset = settings.DistractionOnset,
+                DistractionExposureBonus = settings.DistractionExposureBonus
             };
         }
 
@@ -484,6 +492,12 @@ namespace CoherentWarAI.Models
                     continue;
                 }
                 if (party.MapFaction != defenderFaction || party.Aggressiveness <= 0.01f)
+                {
+                    continue;
+                }
+                // Near is not the same as available: a party holding a siege line or
+                // locked in a battle cannot come to this settlement's aid.
+                if (WarCoordinatorBehavior.IsTiedDown(party))
                 {
                     continue;
                 }
