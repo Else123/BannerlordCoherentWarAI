@@ -399,13 +399,27 @@ namespace CoherentWarAI.Models
                 gateway = GarrisonPlanner.ChokepointScore(foreign, friendly, settings.ChokepointSaturation);
             }
 
+            // Word of an enemy force reported near here. Applied alongside the gate
+            // weighting rather than instead of it: a gate is where you stand by
+            // default, a report is where you go when something is actually coming.
+            float urgency = 1f;
+            if (settings.EnableSightingNetwork)
+            {
+                float reported = SightingNetworkBehavior.ReportedThreatAt(settlement);
+                if (reported > 0f)
+                {
+                    urgency = SightingNetwork.DefensiveUrgency(
+                        reported, settings.SightingTypicalThreat, settings.SightingMaxUrgency);
+                }
+            }
+
             if (gateway <= 0f)
             {
-                return baseScore;
+                return urgency > 1f ? baseScore * urgency : baseScore;
             }
 
             WarAiStats.RecordGatewayDefence();
-            return baseScore * ClaimPlanner.GatewayDefenseBias(gateway, settings.GatewayDefenseGain);
+            return baseScore * ClaimPlanner.GatewayDefenseBias(gateway, settings.GatewayDefenseGain) * urgency;
         }
 
         /// <summary>

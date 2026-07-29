@@ -124,6 +124,24 @@ namespace CoherentWarAI.Settings
         public bool EnableGatewayDefense = true;
         public float GatewayDefenseGain = ClaimPlanner.DefaultGatewayDefenseGain;
 
+        // Sighting network - word of an enemy force travels between lords.
+        public bool EnableSightingNetwork = true;
+        public float SightingRelaySpeed = SightingNetwork.DefaultRelaySpeed;
+        public float SightingLifetimeHours = SightingNetwork.DefaultSightingLifetimeHours;
+        public float SightingSpotRadiusFactor = SightingNetwork.DefaultSpotRadiusFactor;
+
+        /// <summary>How far a reported force is treated as able to strike.</summary>
+        public float SightingReachFactor = 2f;
+
+        /// <summary>Below this, a force is a passing lord rather than an invasion.</summary>
+        public float SightingMinimumStrength = 150f;
+
+        /// <summary>Reported threat considered ordinary, against which urgency is judged.</summary>
+        public float SightingTypicalThreat = 400f;
+
+        /// <summary>Most that reports may raise a settlement's defensive pull.</summary>
+        public float SightingMaxUrgency = 1.5f;
+
         // Bandit hunting - idle defenders police the realm.
         public bool EnableBanditHunting = true;
         public float BanditMaxThreatRatio = BanditHuntPlanner.DefaultMaxThreatRatio;

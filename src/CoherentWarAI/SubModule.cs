@@ -1,4 +1,4 @@
-using CoherentWarAI.Behaviors;
+﻿using CoherentWarAI.Behaviors;
 using CoherentWarAI.Diagnostics;
 using CoherentWarAI.Models;
 using CoherentWarAI.Settings;
@@ -56,6 +56,7 @@ namespace CoherentWarAI
                 // sync is registered last.
                 campaignStarter.AddBehavior(new OutcomeLogBehavior());
                 campaignStarter.AddBehavior(new BanditHuntBehavior());
+                campaignStarter.AddBehavior(new SightingNetworkBehavior());
                 campaignStarter.AddBehavior(new WarPostureBehavior());
                 campaignStarter.AddBehavior(new WarCoordinatorBehavior());
                 campaignStarter.AddBehavior(new ChokepointMapBehavior());
@@ -64,3 +65,4 @@ namespace CoherentWarAI
         }
     }
 }
+

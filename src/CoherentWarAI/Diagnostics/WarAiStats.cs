@@ -45,6 +45,8 @@ namespace CoherentWarAI.Diagnostics
         private static int _rejectedOddsTooBad;
         private static int _pursuitHeld;
         private static int _defenceCorrected;
+        private static int _activeSightings;
+        private static int _settlementsWarned;
 
         /// <summary>Records one offensive target evaluation and what each weight did to it.</summary>
         public static void RecordScore(float overkill, float front, float coord, float strategy, bool floored)
@@ -213,6 +215,12 @@ namespace CoherentWarAI.Diagnostics
             _pursuitHeld++;
         }
 
+        public static void RecordSightings(int active, int settlementsWarned)
+        {
+            _activeSightings = active;
+            _settlementsWarned = settlementsWarned;
+        }
+
         public static void RecordBanditHunts(int count)
         {
             _banditHunts += count;
@@ -266,6 +274,10 @@ namespace CoherentWarAI.Diagnostics
 
             WarAiLog.Write("Effect", string.Format(
                 "idle defenders sent after bandits: {0}", _banditHunts));
+
+            WarAiLog.Write("Effect", string.Format(
+                "enemy forces under report: {0}, settlements that have had word: {1}",
+                _activeSightings, _settlementsWarned));
 
             WarAiLog.Write("Effect", string.Format(
                 "defenders vanilla overlooked (nearby relief, player at full weight): {0} targets ({1:P0})",

@@ -79,7 +79,9 @@
     <Compile Include="Behaviors\WarPostureBehavior.cs" />
     <Compile Include="Logic\ClaimPlanner.cs" />
     <Compile Include="Logic\MarshalPlanner.cs" />
+    <Compile Include="Behaviors\SightingNetworkBehavior.cs" />
     <Compile Include="Logic\ScoreComposer.cs" />
+    <Compile Include="Logic\SightingNetwork.cs" />
     <Compile Include="Logic\StrategicPriority.cs" />
     <Compile Include="Models\CoherentArmyManagementModel.cs" />
     <Compile Include="Diagnostics\WarAiLog.cs" />
@@ -114,4 +116,5 @@
     <Message Text="Deployed CoherentWarAI mod to $(ModOutputPath)" Importance="high" />
   </Target>
 </Project>
+
 
