@@ -27,9 +27,42 @@ namespace CoherentWarAI.Behaviors
         private class Sighting
         {
             public IFaction Observer;
+            public IFaction Seen;
             public CampaignVec2 Where;
             public float EnemyStrength;
+
+            /// <summary>Whether that force was visibly committed to something when seen.</summary>
+            public bool WasTiedDown;
+
             public CampaignTime When;
+        }
+
+        /// <summary>
+        /// What each realm believes about how much of an enemy's strength is tied
+        /// up, keyed by observer and observed - because belief is not shared.
+        /// </summary>
+        private static Dictionary<IFaction, Dictionary<IFaction, float>> _believedDistraction
+            = new Dictionary<IFaction, Dictionary<IFaction, float>>();
+
+        /// <summary>
+        /// How much of an enemy's strength this realm has actually seen tied up
+        /// elsewhere, as a share of that enemy's known total.
+        ///
+        /// Only what scouts have reported counts. A realm cannot exploit an opening
+        /// it has not noticed, and letting it do so would give back with one hand
+        /// the omniscience the sighting network takes away with the other.
+        /// </summary>
+        public static float BelievedDistraction(IFaction observer, IFaction observed)
+        {
+            if (observer == null || observed == null)
+            {
+                return 0f;
+            }
+            if (!_believedDistraction.TryGetValue(observer, out Dictionary<IFaction, float> beliefs))
+            {
+                return 0f;
+            }
+            return beliefs.TryGetValue(observed, out float ratio) ? ratio : 0f;
         }
 
         private static readonly List<Sighting> Sightings = new List<Sighting>();
@@ -65,6 +98,58 @@ namespace CoherentWarAI.Behaviors
         {
             Sightings.Clear();
             _reportedThreat = new Dictionary<Settlement, float>();
+            _believedDistraction = new Dictionary<IFaction, Dictionary<IFaction, float>>();
+        }
+
+        /// <summary>
+        /// Works out what each realm believes about its enemies being committed
+        /// elsewhere, from what its own scouts reported.
+        ///
+        /// A realm's overall size is common knowledge - you can see how many castles
+        /// a kingdom holds. Where its army happens to be this week is not, and that
+        /// is the part that has to be observed. So belief is the strength seen tied
+        /// down, measured against a total that needs no scouting.
+        /// </summary>
+        private static void FormBeliefsAboutDistraction(CoherentWarAISettings settings)
+        {
+            Dictionary<IFaction, Dictionary<IFaction, float>> fresh
+                = new Dictionary<IFaction, Dictionary<IFaction, float>>();
+
+            foreach (Sighting sighting in Sightings)
+            {
+                if (!sighting.WasTiedDown || sighting.Observer == null || sighting.Seen == null)
+                {
+                    continue;
+                }
+                // Stale reports say nothing about where an army is now.
+                if (SightingNetwork.Freshness(sighting.When.ElapsedHoursUntilNow,
+                        settings.SightingLifetimeHours) <= 0f)
+                {
+                    continue;
+                }
+
+                if (!fresh.TryGetValue(sighting.Observer, out Dictionary<IFaction, float> beliefs))
+                {
+                    beliefs = new Dictionary<IFaction, float>();
+                    fresh[sighting.Observer] = beliefs;
+                }
+
+                beliefs.TryGetValue(sighting.Seen, out float running);
+                beliefs[sighting.Seen] = running + sighting.EnemyStrength;
+            }
+
+            // Convert the observed totals into shares of each enemy's known size.
+            foreach (KeyValuePair<IFaction, Dictionary<IFaction, float>> observer in fresh)
+            {
+                List<IFaction> enemies = new List<IFaction>(observer.Value.Keys);
+                foreach (IFaction enemy in enemies)
+                {
+                    observer.Value[enemy] = ForceCommitment.DistractionRatio(
+                        enemy.CurrentTotalStrength, observer.Value[enemy]);
+                }
+            }
+
+            _believedDistraction = fresh;
         }
 
         private void OnHourlyTick()
@@ -90,6 +175,7 @@ namespace CoherentWarAI.Behaviors
             ExpireOldSightings(settings);
             RecordNewSightings(settings, distanceUnit);
             SpreadToSettlements(settings, distanceUnit);
+            FormBeliefsAboutDistraction(settings);
         }
 
         private static void ExpireOldSightings(CoherentWarAISettings settings)
@@ -154,8 +240,10 @@ namespace CoherentWarAI.Behaviors
                     Sightings.Add(new Sighting
                     {
                         Observer = observer.MapFaction,
+                        Seen = seen.MapFaction,
                         Where = seen.Position,
                         EnemyStrength = strength,
+                        WasTiedDown = WarCoordinatorBehavior.IsTiedDown(seen),
                         When = CampaignTime.Now
                     });
                 }

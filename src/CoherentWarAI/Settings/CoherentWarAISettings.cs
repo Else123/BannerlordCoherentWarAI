@@ -125,6 +125,12 @@ namespace CoherentWarAI.Settings
         public float GatewayDefenseGain = ClaimPlanner.DefaultGatewayDefenseGain;
 
         // Strike where the enemy cannot answer.
+        //
+        // Requires the sighting network, and genuinely so rather than by accident:
+        // this acts on what a realm's scouts have reported about enemy forces being
+        // committed elsewhere. Without reports there is nothing to act on, and
+        // reading the enemy's true commitment instead would hand back the very
+        // omniscience the sighting network exists to remove.
         public bool EnableDistractionExploit = true;
         public float DistractionOnset = ForceCommitment.DefaultDistractionOnset;
         public float DistractionExposureBonus = ForceCommitment.DefaultExposureBonus;

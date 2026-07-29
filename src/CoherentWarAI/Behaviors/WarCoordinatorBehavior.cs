@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using CoherentWarAI.Diagnostics;
 using CoherentWarAI.Logic;
 using CoherentWarAI.Settings;
@@ -31,23 +31,6 @@ namespace CoherentWarAI.Behaviors
 
         private static Dictionary<IFaction, IFaction> _primaryEnemies = new Dictionary<IFaction, IFaction>();
 
-        /// <summary>Share of each realm's strength currently unable to answer a new threat.</summary>
-        private static Dictionary<IFaction, float> _distraction = new Dictionary<IFaction, float>();
-
-        /// <summary>
-        /// How much of this realm's strength is tied up elsewhere, 0..1. A realm
-        /// that has committed its host to a siege cannot also defend its border,
-        /// which is exactly the opening a coherent attacker should be looking for.
-        /// </summary>
-        public static float GetDistractionRatio(IFaction faction)
-        {
-            if (faction == null)
-            {
-                return 0f;
-            }
-            return _distraction.TryGetValue(faction, out float ratio) ? ratio : 0f;
-        }
-
         /// <summary>
         /// Whether this party is committed to something it cannot simply walk away
         /// from. Vanilla counts any nearby force as an available defender; a party
@@ -64,46 +47,7 @@ namespace CoherentWarAI.Behaviors
                 || (party.SiegeEvent != null && party.CurrentSettlement == null);
         }
 
-        /// <summary>
-        /// Works out, per realm, how much of its strength is currently unavailable.
-        /// Recomputed with the rest of the coordination state each hour.
-        /// </summary>
-        private static void MeasureDistraction()
-        {
-            Dictionary<IFaction, float> total = new Dictionary<IFaction, float>();
-            Dictionary<IFaction, float> tied = new Dictionary<IFaction, float>();
 
-            foreach (MobileParty party in MobileParty.AllLordParties)
-            {
-                if (party == null || !party.IsActive || party.Party == null || party.MapFaction == null)
-                {
-                    continue;
-                }
-
-                IFaction faction = party.MapFaction;
-                float strength = party.Party.EstimatedStrength;
-
-                total.TryGetValue(faction, out float runningTotal);
-                total[faction] = runningTotal + strength;
-
-                if (IsTiedDown(party))
-                {
-                    tied.TryGetValue(faction, out float runningTied);
-                    tied[faction] = runningTied + strength;
-                }
-            }
-
-            Dictionary<IFaction, float> fresh = new Dictionary<IFaction, float>();
-            foreach (KeyValuePair<IFaction, float> pair in tied)
-            {
-                if (total.TryGetValue(pair.Key, out float factionTotal))
-                {
-                    fresh[pair.Key] = ForceCommitment.DistractionRatio(factionTotal, pair.Value);
-                }
-            }
-
-            _distraction = fresh;
-        }
 
         public override void RegisterEvents()
         {
@@ -315,7 +259,6 @@ namespace CoherentWarAI.Behaviors
             }
 
             _committed = fresh;
-            MeasureDistraction();
         }
 
         /// <summary>
@@ -351,3 +294,4 @@ namespace CoherentWarAI.Behaviors
         }
     }
 }
+

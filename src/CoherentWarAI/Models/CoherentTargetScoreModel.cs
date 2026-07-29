@@ -160,7 +160,9 @@ namespace CoherentWarAI.Models
                 EnemyFocus = settings.EnableEnemyFocus && factionsKnown,
                 Holdability = settings.EnableHoldability && mobileParty.MapFaction != null,
                 CommitmentStickiness = settings.EnableCommitmentHysteresis,
-                ExploitDistraction = settings.EnableDistractionExploit && targetSettlement.MapFaction != null
+                ExploitDistraction = settings.EnableDistractionExploit
+                    && settings.EnableSightingNetwork
+                    && factionsKnown
             };
         }
 
@@ -223,7 +225,12 @@ namespace CoherentWarAI.Models
 
             if (toggles.ExploitDistraction)
             {
-                inputs.EnemyDistraction = WarCoordinatorBehavior.GetDistractionRatio(targetSettlement.MapFaction);
+                // Only what our own scouts have reported. Reading the enemy's true
+                // commitment would hand back exactly the omniscience the sighting
+                // network exists to remove - a realm cannot exploit an opening it
+                // has not noticed.
+                inputs.EnemyDistraction = SightingNetworkBehavior.BelievedDistraction(
+                    mobileParty.MapFaction, targetSettlement.MapFaction);
             }
 
             if (toggles.NeedsHoldabilityNeighbours)
