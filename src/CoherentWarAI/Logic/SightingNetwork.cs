@@ -109,6 +109,47 @@ namespace CoherentWarAI.Logic
             return enemyStrength * proximity * freshness;
         }
 
+        /// <summary>How far a target's score falls when nothing is known about it.</summary>
+        public const float DefaultUnknownPenalty = 0.55f;
+
+        /// <summary>
+        /// How confidently a realm can act against a place, given when it last had
+        /// eyes on it.
+        ///
+        /// This is what stops the AI from behaving omniscient in its target choice.
+        /// It cannot be stopped from *seeing* everything - vanilla's own loops read
+        /// the world directly and are not ours to change - but it can be stopped
+        /// from acting decisively on knowledge it never gathered. A lord marches on
+        /// what he has been told about, and a castle nobody has looked at in a month
+        /// is a rumour rather than a plan.
+        ///
+        /// Bordering our own land counts as known: a frontier is watched
+        /// continuously by the people living along it, without anyone being sent.
+        /// </summary>
+        /// <param name="bordersOurLand">Whether the place adjoins territory of ours.</param>
+        /// <param name="hoursSinceObserved">Time since a party of ours was last in sight of it; negative if never.</param>
+        public static float KnowledgeWeight(bool bordersOurLand, float hoursSinceObserved,
+            float lifetimeHours, float unknownPenalty)
+        {
+            if (bordersOurLand)
+            {
+                return 1f;
+            }
+
+            float penalty = unknownPenalty < 0f ? 0f : (unknownPenalty > 1f ? 1f : unknownPenalty);
+            float floor = 1f - penalty;
+
+            if (hoursSinceObserved < 0f)
+            {
+                return floor;
+            }
+
+            // Knowledge decays the same way a report does: what was seen a while ago
+            // is somewhere between certainty and hearsay.
+            float freshness = Freshness(hoursSinceObserved, lifetimeHours);
+            return floor + penalty * freshness;
+        }
+
         /// <summary>
         /// Turns accumulated reported threat into a defensive weighting for a
         /// settlement, relative to what a realm normally faces.

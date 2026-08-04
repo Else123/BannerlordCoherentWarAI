@@ -29,7 +29,8 @@ namespace CoherentWarAI.Settings
         private const string MarshalGroup = "5. Marshal doctrine";
         private const string StrategyGroup = "6. Strategy";
         private const string GarrisonGroup = "7. Garrisons and gateways";
-        private const string DiagnosticsGroup = "8. Diagnostics";
+        private const string IntelligenceGroup = "8. What the AI knows";
+        private const string DiagnosticsGroup = "9. Diagnostics";
 
         // --- 1. Defence first -------------------------------------------------
 
@@ -235,16 +236,58 @@ namespace CoherentWarAI.Settings
         [SettingPropertyGroup(CoordinationGroup, GroupOrder = 3)]
         public float BanditRequiredAdvantage { get; set; } = BanditHuntPlanner.DefaultRequiredHunterAdvantage;
 
-        // --- 8. Diagnostics ---------------------------------------------------
+        // --- 8. What the AI knows ---------------------------------------------
+
+        [SettingPropertyBool("Word travels between lords", Order = 0, RequireRestart = false,
+            HintText = "Sightings of an enemy force are relayed to the lords of the same realm at a rider's pace, and fade as they age. Everything else in this section is built on those reports, so switching this off switches all of it off.")]
+        [SettingPropertyGroup(IntelligenceGroup, GroupOrder = 7)]
+        public bool EnableSightingNetwork { get; set; } = true;
+
+        [SettingPropertyFloatingInteger("How fast word spreads", 0.5f, 20f, "0.0", Order = 1, RequireRestart = false,
+            HintText = "Map distance a report covers per hour. Lower means outlying lords learn of an invasion late, which is the point of having a network at all.")]
+        [SettingPropertyGroup(IntelligenceGroup, GroupOrder = 7)]
+        public float SightingRelaySpeed { get; set; } = SightingNetwork.DefaultRelaySpeed;
+
+        [SettingPropertyFloatingInteger("How long a report is trusted (hours)", 6f, 168f, "0", Order = 2, RequireRestart = false,
+            HintText = "A sighting decays to nothing over this span. Long enough to react, short enough that a week-old rumour does not move armies.")]
+        [SettingPropertyGroup(IntelligenceGroup, GroupOrder = 7)]
+        public float SightingLifetimeHours { get; set; } = SightingNetwork.DefaultSightingLifetimeHours;
+
+        [SettingPropertyBool("Scouts differ in quality", Order = 3, RequireRestart = false,
+            HintText = "A party's Scouting skill decides how far it sees and how much its reports are worth. Off means every party observes equally well, which is what vanilla effectively does.")]
+        [SettingPropertyGroup(IntelligenceGroup, GroupOrder = 7)]
+        public bool EnableScoutSkill { get; set; } = true;
+
+        [SettingPropertyBool("Strike where the enemy cannot answer", Order = 4, RequireRestart = false,
+            HintText = "A realm whose host is committed to a siege elsewhere cannot also hold its border, and its fiefs become worth attacking. Acts only on what our own scouts reported - reading the enemy's true commitment would hand back the omniscience this section exists to remove.")]
+        [SettingPropertyGroup(IntelligenceGroup, GroupOrder = 7)]
+        public bool EnableDistractionExploit { get; set; } = true;
+
+        [SettingPropertyBool("Attack only what is known", Order = 5, RequireRestart = false,
+            HintText = "A fief nobody has laid eyes on is a worse objective than one we watch. Settlements bordering our own land are always considered known. Needs 'Word travels between lords' - there is nothing to know without scouts.")]
+        [SettingPropertyGroup(IntelligenceGroup, GroupOrder = 7)]
+        public bool EnableKnowledgeWeight { get; set; } = true;
+
+        [SettingPropertyFloatingInteger("Penalty for the unknown", 0f, 0.9f, "0.00", Order = 6, RequireRestart = false,
+            HintText = "How far an unseen fief is discouraged. At 0 the weight does nothing; kept below 1 so a target never falls out of consideration entirely and the AI can still push into unfamiliar ground.")]
+        [SettingPropertyGroup(IntelligenceGroup, GroupOrder = 7)]
+        public float UnknownTargetPenalty { get; set; } = SightingNetwork.DefaultUnknownPenalty;
+
+        [SettingPropertyFloatingInteger("How long a look counts (hours)", 24f, 720f, "0", Order = 7, RequireRestart = false,
+            HintText = "How long having seen a settlement keeps counting as knowing it. Longer than a force sighting, because terrain and walls do not move.")]
+        [SettingPropertyGroup(IntelligenceGroup, GroupOrder = 7)]
+        public float KnowledgeLifetimeHours { get; set; } = 240f;
+
+        // --- 9. Diagnostics ---------------------------------------------------
 
         [SettingPropertyBool("Write a decision log", Order = 0, RequireRestart = true,
             HintText = "Records what the AI decided and why, in Documents/Mount and Blade II Bannerlord/CoherentWarAI. On by default: the weights above ship untuned, and tuning them without a trace is guesswork.")]
-        [SettingPropertyGroup(DiagnosticsGroup, GroupOrder = 7)]
+        [SettingPropertyGroup(DiagnosticsGroup, GroupOrder = 8)]
         public bool EnableLogging { get; set; } = true;
 
         [SettingPropertyBool("Log every target score", Order = 1, RequireRestart = true,
             HintText = "Very noisy - target scoring runs hundreds of times per game hour. Only worth enabling to dissect one specific situation.")]
-        [SettingPropertyGroup(DiagnosticsGroup, GroupOrder = 7)]
+        [SettingPropertyGroup(DiagnosticsGroup, GroupOrder = 8)]
         public bool VerboseScoreLogging { get; set; } = false;
 
         /// <summary>
@@ -304,6 +347,15 @@ namespace CoherentWarAI.Settings
             target.RecruitCapMax = RecruitCapMax;
             target.EnableChokepointAnalysis = EnableChokepointAnalysis;
             target.ChokepointGain = ChokepointGain;
+
+            target.EnableSightingNetwork = EnableSightingNetwork;
+            target.SightingRelaySpeed = SightingRelaySpeed;
+            target.SightingLifetimeHours = SightingLifetimeHours;
+            target.EnableScoutSkill = EnableScoutSkill;
+            target.EnableDistractionExploit = EnableDistractionExploit;
+            target.EnableKnowledgeWeight = EnableKnowledgeWeight;
+            target.UnknownTargetPenalty = UnknownTargetPenalty;
+            target.KnowledgeLifetimeHours = KnowledgeLifetimeHours;
 
             target.EnableLogging = EnableLogging;
             target.VerboseScoreLogging = VerboseScoreLogging;

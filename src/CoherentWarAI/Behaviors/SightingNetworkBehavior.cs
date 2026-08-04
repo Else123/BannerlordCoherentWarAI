@@ -76,6 +76,31 @@ namespace CoherentWarAI.Behaviors
         private static Dictionary<Settlement, float> _reportedThreat = new Dictionary<Settlement, float>();
 
         /// <summary>
+        /// When each realm last had a party within sight of each foreign settlement.
+        /// Kept per observer, because knowing a place is not something realms share.
+        /// </summary>
+        private static readonly Dictionary<IFaction, Dictionary<Settlement, CampaignTime>> LastObserved
+            = new Dictionary<IFaction, Dictionary<Settlement, CampaignTime>>();
+
+        /// <summary>
+        /// Hours since this realm last had eyes on that settlement, or -1 if it
+        /// never has. Used to keep lords from marching confidently on places they
+        /// know nothing about.
+        /// </summary>
+        public static float HoursSinceObserved(IFaction observer, Settlement settlement)
+        {
+            if (observer == null || settlement == null)
+            {
+                return -1f;
+            }
+            if (!LastObserved.TryGetValue(observer, out Dictionary<Settlement, CampaignTime> seen))
+            {
+                return -1f;
+            }
+            return seen.TryGetValue(settlement, out CampaignTime when) ? when.ElapsedHoursUntilNow : -1f;
+        }
+
+        /// <summary>
         /// How alarming the reports reaching this settlement are. Zero when nothing
         /// has been reported, or when no report has arrived here yet.
         /// </summary>
@@ -104,6 +129,47 @@ namespace CoherentWarAI.Behaviors
             Sightings.Clear();
             _reportedThreat = new Dictionary<Settlement, float>();
             _believedDistraction = new Dictionary<IFaction, Dictionary<IFaction, float>>();
+            LastObserved.Clear();
+        }
+
+        /// <summary>
+        /// Notes foreign settlements this party can currently see. Riding past a
+        /// castle is how a realm learns what is there - and not having ridden past
+        /// is why it should be wary of marching on one.
+        /// </summary>
+        private static void NoteSettlementsInSight(MobileParty observer, float spotRadius)
+        {
+            IFaction faction = observer.MapFaction;
+            if (faction == null)
+            {
+                return;
+            }
+
+            LocatableSearchData<Settlement> data = Settlement.StartFindingLocatablesAroundPosition(
+                observer.Position.ToVec2(), spotRadius);
+
+            for (Settlement settlement = Settlement.FindNextLocatable(ref data);
+                 settlement != null;
+                 settlement = Settlement.FindNextLocatable(ref data))
+            {
+                // Villages count as much as castles here: raids are scored through
+                // the same path as sieges, so tracking only fortifications would
+                // leave every village permanently unknown - which would turn the
+                // knowledge weight into a flat penalty on all raiding rather than a
+                // distinction between ground we watch and ground we do not.
+                if (settlement.IsHideout || !(settlement.IsFortification || settlement.IsVillage)
+                    || settlement.MapFaction == faction)
+                {
+                    continue;
+                }
+
+                if (!LastObserved.TryGetValue(faction, out Dictionary<Settlement, CampaignTime> seen))
+                {
+                    seen = new Dictionary<Settlement, CampaignTime>();
+                    LastObserved[faction] = seen;
+                }
+                seen[settlement] = CampaignTime.Now;
+            }
         }
 
         /// <summary>
@@ -198,9 +264,40 @@ namespace CoherentWarAI.Behaviors
             }
 
             ExpireOldSightings(settings);
+            ForgetDeadRealms();
             RecordNewSightings(settings, distanceUnit);
             SpreadToSettlements(settings, distanceUnit);
             FormBeliefsAboutDistraction(settings);
+        }
+
+        /// <summary>
+        /// Drops what destroyed realms knew. Nothing reads it once they are gone, so
+        /// this is only about not carrying every clan that ever formed and fell for
+        /// the rest of a long campaign.
+        /// </summary>
+        private static void ForgetDeadRealms()
+        {
+            List<IFaction> gone = null;
+            foreach (KeyValuePair<IFaction, Dictionary<Settlement, CampaignTime>> pair in LastObserved)
+            {
+                if (pair.Key == null || pair.Key.IsEliminated)
+                {
+                    if (gone == null)
+                    {
+                        gone = new List<IFaction>();
+                    }
+                    gone.Add(pair.Key);
+                }
+            }
+
+            if (gone == null)
+            {
+                return;
+            }
+            foreach (IFaction faction in gone)
+            {
+                LastObserved.Remove(faction);
+            }
         }
 
         private static void ExpireOldSightings(CoherentWarAISettings settings)
@@ -237,6 +334,8 @@ namespace CoherentWarAI.Behaviors
                 float scouting = ScoutingSkillOf(observer, settings);
                 float spotRadius = baseRadius * ScoutingQuality.ReachMultiplier(scouting, settings.ScoutingReachBonus);
                 float confidence = ScoutingQuality.Confidence(scouting, settings.ScoutingMinimumConfidence);
+
+                NoteSettlementsInSight(observer, spotRadius);
 
                 LocatableSearchData<MobileParty> data = MobileParty.StartFindingLocatablesAroundPosition(
                     observer.Position.ToVec2(), spotRadius);

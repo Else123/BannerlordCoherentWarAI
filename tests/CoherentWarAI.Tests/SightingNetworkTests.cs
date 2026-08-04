@@ -103,5 +103,50 @@ namespace CoherentWarAI.Tests
             Assert.True(SightingNetwork.HasReached(border, 12f, SightingNetwork.DefaultRelaySpeed, Unit));
             Assert.True(SightingNetwork.HasReached(capital, 12f, SightingNetwork.DefaultRelaySpeed, Unit));
         }
+
+        // lifetime 240h, penalty 0.55 -> floor 0.45
+        [Theory]
+        [InlineData(0f, 1f)]        // seen just now
+        [InlineData(60f, 0.8625f)]  // fading
+        [InlineData(120f, 0.725f)]  // half forgotten
+        [InlineData(240f, 0.45f)]   // out of mind
+        [InlineData(999f, 0.45f)]   // long out of mind, no worse than never
+        [InlineData(-1f, 0.45f)]    // never seen at all
+        public void KnowledgeWeight_DecaysFromCertainToTheFloor(float hoursSince, float expected)
+        {
+            Assert.Equal(expected, SightingNetwork.KnowledgeWeight(false, hoursSince, 240f, 0.55f), 4);
+        }
+
+        [Fact]
+        public void LandNextToOursCountsAsKnownHoweverLongAgoItWasSeen()
+        {
+            // A realm does not need a scout to know what its own border villages
+            // face. Without this the AI would refuse to attack the one fief it has
+            // the most reason to want.
+            Assert.Equal(1f, SightingNetwork.KnowledgeWeight(true, -1f, 240f, 0.55f), 4);
+            Assert.Equal(1f, SightingNetwork.KnowledgeWeight(true, 5000f, 240f, 0.55f), 4);
+        }
+
+        [Fact]
+        public void KnowledgeNeverRemovesATargetEntirely()
+        {
+            // Even at the harshest setting the weight stays positive: an unseen
+            // fief should rank last, not become unreachable, or the AI could never
+            // expand into ground it has no presence near.
+            float harshest = SightingNetwork.KnowledgeWeight(false, -1f, 240f, 1f);
+            Assert.True(harshest >= 0f, $"weight {harshest} must not go negative");
+
+            Assert.Equal(1f, SightingNetwork.KnowledgeWeight(false, -1f, 240f, 0f), 4);
+        }
+
+        [Fact]
+        public void AbsurdPenaltiesAreClampedRatherThanInverted()
+        {
+            // Settings are bounded in MCM, but the logic is the layer that has to
+            // hold: a penalty above 1 would otherwise make the floor negative and
+            // an unseen target score below zero, flipping its ranking.
+            Assert.Equal(0f, SightingNetwork.KnowledgeWeight(false, -1f, 240f, 4f), 4);
+            Assert.Equal(1f, SightingNetwork.KnowledgeWeight(false, -1f, 240f, -2f), 4);
+        }
     }
 }

@@ -29,7 +29,11 @@ namespace CoherentWarAI.Tests
                 ConsolidationBonus = StrategicPriority.DefaultConsolidationBonus,
                 SalientPenalty = StrategicPriority.DefaultSalientPenalty,
                 PursuitStickiness = EngagementHysteresis.DefaultPursuitStickiness,
-                MinimumWeightFloor = 0.25f
+                MinimumWeightFloor = 0.25f,
+                DistractionOnset = ForceCommitment.DefaultDistractionOnset,
+                DistractionExposureBonus = ForceCommitment.DefaultExposureBonus,
+                KnowledgeLifetimeHours = 240f,
+                UnknownPenalty = SightingNetwork.DefaultUnknownPenalty
             };
         }
 
@@ -48,7 +52,10 @@ namespace CoherentWarAI.Tests
                 IsPrimaryEnemy = false,
                 StancePriority = 0,
                 HoldabilityFriendlyNeighbours = 0,
-                HoldabilityHostileNeighbours = 4
+                HoldabilityHostileNeighbours = 4,
+                EnemyDistraction = 0f,
+                TargetBordersOurLand = false,
+                HoursSinceObserved = -1f
             };
         }
 
@@ -184,6 +191,51 @@ namespace CoherentWarAI.Tests
 
             ScoreInputs arriving = Typical();
             Assert.NotEqual(1f, ScoreComposer.Compose(arriving, new WeightToggles { Coordination = true }, tuning).Coordination);
+
+            Assert.NotEqual(1f, ScoreComposer.Compose(inputs, new WeightToggles { RequireKnowledge = true }, tuning).Knowledge);
+
+            ScoreInputs enemyBusy = Typical();
+            enemyBusy.EnemyDistraction = 0.9f;
+            Assert.NotEqual(1f, ScoreComposer.Compose(enemyBusy, new WeightToggles { ExploitDistraction = true }, tuning).Exposure);
+        }
+
+        [Fact]
+        public void KnowledgeIsNotAppliedUnlessAskedFor()
+        {
+            // The knowledge weight rides on the sighting network, and the caller
+            // switches it off when there is no network to read. If it leaked into
+            // an unrelated toggle, every target would silently be penalised for
+            // being unseen by a system that was never running.
+            ScoreInputs unseen = Typical();
+
+            ScoreWeights w = ScoreComposer.Compose(unseen, new WeightToggles
+            {
+                CountNearbyDefenders = true,
+                DeGreedTargets = true,
+                Coordination = true,
+                EnemyFocus = true,
+                CommitmentStickiness = true,
+                ExploitDistraction = true
+            }, Defaults());
+
+            Assert.Equal(1f, w.Knowledge, 4);
+        }
+
+        [Fact]
+        public void AWatchedBorderFiefOutranksAnUnseenOneAllElseEqual()
+        {
+            // What the whole feature is for: given two identical targets, the AI
+            // should march on the one it has eyes on.
+            ScoreTuning tuning = Defaults();
+            WeightToggles toggles = new WeightToggles { RequireKnowledge = true };
+
+            ScoreInputs watched = Typical();
+            watched.TargetBordersOurLand = true;
+
+            ScoreInputs unseen = Typical();
+
+            Assert.True(ScoreComposer.Compose(watched, toggles, tuning).Combined
+                > ScoreComposer.Compose(unseen, toggles, tuning).Combined);
         }
 
         [Fact]

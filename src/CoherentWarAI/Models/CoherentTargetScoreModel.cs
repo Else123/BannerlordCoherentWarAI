@@ -64,9 +64,15 @@ namespace CoherentWarAI.Models
             if (WarAiLog.VerboseScoring)
             {
                 WarAiLog.Write("Score", string.Format(
-                    "{0} -> {1} ({2}): vanilla {3:F1} x overkill {4:F2} x front {5:F2} x coord {6:F2} x strategy {7:F2} = {8:F1}",
+                    "{0} -> {1} ({2}): vanilla {3:F1} x overkill {4:F2} x front {5:F2} x coord {6:F2} "
+                    + "x strategy {7:F2} x exposure {8:F2} x knowledge {9:F2} (last seen {10}) = {11:F1}",
                     mobileParty.LeaderHero?.Name, targetSettlement.Name, missionType,
-                    baseScore, weights.Overkill, weights.Front, weights.Coordination, weights.Strategy, score));
+                    baseScore, weights.Overkill, weights.Front, weights.Coordination, weights.Strategy,
+                    weights.Exposure, weights.Knowledge,
+                    inputs.TargetBordersOurLand ? "borders us"
+                        : inputs.HoursSinceObserved < 0f ? "never"
+                        : string.Format("{0:F0}h ago", inputs.HoursSinceObserved),
+                    score));
             }
 
             // Remember the assessment of the target this lord is actually pursuing.
@@ -162,6 +168,11 @@ namespace CoherentWarAI.Models
                 CommitmentStickiness = settings.EnableCommitmentHysteresis,
                 ExploitDistraction = settings.EnableDistractionExploit
                     && settings.EnableSightingNetwork
+                    && factionsKnown,
+                // Same genuine dependency as above: without scouting there is no
+                // notion of what a realm has or has not seen.
+                RequireKnowledge = settings.EnableKnowledgeWeight
+                    && settings.EnableSightingNetwork
                     && factionsKnown
             };
         }
@@ -233,6 +244,24 @@ namespace CoherentWarAI.Models
                     mobileParty.MapFaction, targetSettlement.MapFaction);
             }
 
+            if (toggles.RequireKnowledge)
+            {
+                inputs.HoursSinceObserved = SightingNetworkBehavior.HoursSinceObserved(
+                    mobileParty.MapFaction, targetSettlement);
+
+                // A frontier is watched continuously by the people living along it,
+                // so a neighbouring fief needs no scouting party to be known.
+                IFaction ourFaction = mobileParty.MapFaction;
+                foreach (Settlement neighbor in SettlementNeighbors.Of(targetSettlement))
+                {
+                    if (neighbor.MapFaction == ourFaction)
+                    {
+                        inputs.TargetBordersOurLand = true;
+                        break;
+                    }
+                }
+            }
+
             if (toggles.NeedsHoldabilityNeighbours)
             {
                 CountHoldabilityNeighbors(targetSettlement, mobileParty.MapFaction,
@@ -267,7 +296,9 @@ namespace CoherentWarAI.Models
                 PursuitStickiness = settings.PursuitStickiness,
                 MinimumWeightFloor = settings.MinimumWeightFloor,
                 DistractionOnset = settings.DistractionOnset,
-                DistractionExposureBonus = settings.DistractionExposureBonus
+                DistractionExposureBonus = settings.DistractionExposureBonus,
+                KnowledgeLifetimeHours = settings.KnowledgeLifetimeHours,
+                UnknownPenalty = settings.UnknownTargetPenalty
             };
         }
 
@@ -288,6 +319,14 @@ namespace CoherentWarAI.Models
             if (toggles.CommitmentStickiness && inputs.IsPursuingTarget)
             {
                 WarAiStats.RecordPursuitHeld();
+            }
+            if (toggles.ExploitDistraction)
+            {
+                WarAiStats.RecordExposure(weights.Exposure);
+            }
+            if (toggles.RequireKnowledge)
+            {
+                WarAiStats.RecordKnowledge(weights.Knowledge);
             }
 
             WarAiStats.RecordScore(weights.Overkill, weights.Front, weights.Coordination,

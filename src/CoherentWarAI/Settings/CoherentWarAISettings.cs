@@ -162,6 +162,24 @@ namespace CoherentWarAI.Settings
         public float ScoutingReachBonus = ScoutingQuality.DefaultReachBonus;
         public float ScoutingMinimumConfidence = ScoutingQuality.DefaultMinimumConfidence;
 
+        /// <summary>
+        /// Act on what is known. The AI cannot be stopped from seeing the map -
+        /// vanilla's own loops read it directly - but this stops it marching
+        /// confidently on a castle nobody has laid eyes on. Requires the sighting
+        /// network for the same genuine reason as the distraction weight.
+        /// </summary>
+        public bool EnableKnowledgeWeight = true;
+
+        /// <summary>
+        /// How long a look at a settlement stays worth acting on. Ten days: long
+        /// enough that a realm does not forget its neighbours between campaigns,
+        /// short enough that a year-old glance is not treated as intelligence.
+        /// </summary>
+        public float KnowledgeLifetimeHours = 240f;
+
+        /// <summary>Most that never having seen a place may reduce its appeal.</summary>
+        public float UnknownTargetPenalty = SightingNetwork.DefaultUnknownPenalty;
+
         // Bandit hunting - idle defenders police the realm.
         public bool EnableBanditHunting = true;
         public float BanditMaxThreatRatio = BanditHuntPlanner.DefaultMaxThreatRatio;

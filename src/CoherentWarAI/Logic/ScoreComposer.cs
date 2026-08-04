@@ -10,6 +10,7 @@ namespace CoherentWarAI.Logic
         public bool Holdability;
         public bool CommitmentStickiness;
         public bool ExploitDistraction;
+        public bool RequireKnowledge;
 
         /// <summary>
         /// Whether anything enabled needs the defender estimate.
@@ -79,6 +80,12 @@ namespace CoherentWarAI.Logic
 
         /// <summary>Share of the target owner's strength tied up elsewhere, 0..1.</summary>
         public float EnemyDistraction;
+
+        /// <summary>Whether the target adjoins land of ours, and so is watched anyway.</summary>
+        public bool TargetBordersOurLand;
+
+        /// <summary>Time since we had eyes on the target; negative if we never have.</summary>
+        public float HoursSinceObserved;
     }
 
     /// <summary>The tuning values, lifted out of settings.</summary>
@@ -100,6 +107,8 @@ namespace CoherentWarAI.Logic
         public float MinimumWeightFloor;
         public float DistractionOnset;
         public float DistractionExposureBonus;
+        public float KnowledgeLifetimeHours;
+        public float UnknownPenalty;
     }
 
     /// <summary>Each weight separately, plus the product actually applied.</summary>
@@ -114,6 +123,9 @@ namespace CoherentWarAI.Logic
 
         /// <summary>How much the owner being busy elsewhere raises this target's appeal.</summary>
         public float Exposure;
+
+        /// <summary>How confidently this target can be acted on at all.</summary>
+        public float Knowledge;
 
         /// <summary>The holdability part of Strategy, kept for diagnostics.</summary>
         public float HoldabilityBias;
@@ -152,8 +164,19 @@ namespace CoherentWarAI.Logic
                 Strategy = 1f,
                 Commitment = 1f,
                 Exposure = 1f,
+                Knowledge = 1f,
                 HoldabilityBias = 1f
             };
+
+            // Act on what is known. The AI cannot be stopped from seeing the whole
+            // map - vanilla's own loops read it directly - but it can be stopped
+            // from marching confidently on a castle nobody has laid eyes on.
+            if (toggles.RequireKnowledge)
+            {
+                weights.Knowledge = SightingNetwork.KnowledgeWeight(
+                    inputs.TargetBordersOurLand, inputs.HoursSinceObserved,
+                    tuning.KnowledgeLifetimeHours, tuning.UnknownPenalty);
+            }
 
             // Strike where the enemy cannot answer. A realm that has thrown its host
             // at a siege of its own cannot also hold its border, and that opening is
@@ -214,7 +237,8 @@ namespace CoherentWarAI.Logic
             }
 
             weights.Raw = weights.Visibility * weights.Overkill * weights.Front
-                * weights.Coordination * weights.Strategy * weights.Commitment * weights.Exposure;
+                * weights.Coordination * weights.Strategy * weights.Commitment
+                * weights.Exposure * weights.Knowledge;
 
             // Floored here rather than by the caller, so no future caller can forget
             // to - the guarantee that an offensive never disappears entirely only

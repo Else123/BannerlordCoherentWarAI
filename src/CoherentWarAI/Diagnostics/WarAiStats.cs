@@ -47,6 +47,11 @@ namespace CoherentWarAI.Diagnostics
         private static int _defenceCorrected;
         private static int _activeSightings;
         private static int _settlementsWarned;
+        private static int _exposureExploited;
+        private static float _exposureSum;
+        private static int _knowledgeJudged;
+        private static int _knowledgeDamped;
+        private static float _knowledgeSum;
 
         /// <summary>Records one offensive target evaluation and what each weight did to it.</summary>
         public static void RecordScore(float overkill, float front, float coord, float strategy, bool floored)
@@ -215,6 +220,32 @@ namespace CoherentWarAI.Diagnostics
             _pursuitHeld++;
         }
 
+        /// <summary>Records that a target looked better because its owner was busy elsewhere.</summary>
+        public static void RecordExposure(float exposure)
+        {
+            if (exposure > 1.001f)
+            {
+                _exposureExploited++;
+                _exposureSum += exposure;
+            }
+        }
+
+        /// <summary>
+        /// Records how confidently a target could be judged. Counted separately from
+        /// how many were damped: if nearly every target is fully known, the weight is
+        /// doing nothing and the sighting radius is the thing to look at, not this.
+        /// </summary>
+        public static void RecordKnowledge(float knowledge)
+        {
+            _knowledgeJudged++;
+            _knowledgeSum += knowledge;
+
+            if (knowledge < 0.999f)
+            {
+                _knowledgeDamped++;
+            }
+        }
+
         public static void RecordSightings(int active, int settlementsWarned)
         {
             _activeSightings = active;
@@ -283,6 +314,18 @@ namespace CoherentWarAI.Diagnostics
                 "defenders vanilla overlooked (nearby relief, player at full weight): {0} targets ({1:P0})",
                 _defenceCorrected, Share(_defenceCorrected)));
 
+            WarAiLog.Write("Effect", string.Format(
+                "targets made more tempting by a distracted owner: {0} ({1:P0}), averaging x{2:F2}",
+                _exposureExploited, Share(_exposureExploited), Average(_exposureSum, _exposureExploited)));
+
+            // Both numbers matter: all-damped means the realm is blind and every
+            // attack is being discouraged equally, which is no discrimination at all.
+            WarAiLog.Write("Effect", string.Format(
+                "targets judged on what was known: {0}, of which {1} were less than certain ({2:P0}); average confidence x{3:F2}",
+                _knowledgeJudged, _knowledgeDamped,
+                _knowledgeJudged > 0 ? (float)_knowledgeDamped / _knowledgeJudged : 0f,
+                Average(_knowledgeSum, _knowledgeJudged)));
+
             // Per realm, since a dominant kingdom and a struggling one see quite
             // different odds and each should judge overkill by its own experience.
             foreach (KeyValuePair<IFaction, RatioAccumulator> pair in Ratios)
@@ -310,6 +353,12 @@ namespace CoherentWarAI.Diagnostics
             return _scored > 0 ? (float)count / _scored : 0f;
         }
 
+        /// <summary>Mean weight over the cases it applied to; 1 (neutral) when there were none.</summary>
+        private static float Average(float sum, int count)
+        {
+            return count > 0 ? sum / count : 1f;
+        }
+
         private static void Reset()
         {
             _scored = 0;
@@ -334,6 +383,11 @@ namespace CoherentWarAI.Diagnostics
             _rejectedOddsTooBad = 0;
             _pursuitHeld = 0;
             _defenceCorrected = 0;
+            _exposureExploited = 0;
+            _exposureSum = 0f;
+            _knowledgeJudged = 0;
+            _knowledgeDamped = 0;
+            _knowledgeSum = 0f;
 
             // Carry each realm's observed odds forward as its new baseline, so the
             // threshold tracks the campaign rather than resetting each day.
