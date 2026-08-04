@@ -67,10 +67,41 @@
       <HintPath>$(McmBinPath)\MCMv5.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <!-- Gauntlet UI core: GauntletLayer, used to load our own movie onto the map's nameplate layer. -->
+    <Reference Include="TaleWorlds.GauntletUI">
+      <HintPath>$(BannerlordBinPath)\TaleWorlds.GauntletUI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <!-- Candidate home of MBWindowManager's world-to-screen projection; kept referenced even though
+         the code currently calls it via TaleWorlds.Library - see UnknownMarkersVM for the open point. -->
+    <Reference Include="TaleWorlds.DotNet">
+      <HintPath>$(BannerlordBinPath)\TaleWorlds.DotNet.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="TaleWorlds.Engine.GauntletUI">
+      <HintPath>$(BannerlordBinPath)\TaleWorlds.Engine.GauntletUI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="TaleWorlds.ScreenSystem">
+      <HintPath>$(BannerlordBinPath)\TaleWorlds.ScreenSystem.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <!-- SandBox ships the campaign map screen and view classes; not in bin, see SandBoxBinPath above. -->
+    <Reference Include="SandBox.View">
+      <HintPath>$(SandBoxBinPath)\SandBox.View.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="SandBox.GauntletUI">
+      <HintPath>$(SandBoxBinPath)\SandBox.GauntletUI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Behaviors\BanditHuntBehavior.cs" />
     <Compile Include="Behaviors\ChokepointMapBehavior.cs" />
+    <Compile Include="Behaviors\MapMarkerBehavior.cs" />
+    <Compile Include="UI\UnknownSettlementMarkerView.cs" />
+    <Compile Include="UI\UnknownMarkersVM.cs" />
     <Compile Include="Behaviors\OutcomeLogBehavior.cs" />
     <Compile Include="Logic\BanditHuntPlanner.cs" />
     <Compile Include="Behaviors\SettingsSyncBehavior.cs" />
@@ -115,6 +146,10 @@
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModOutputPath)\bin\Win64_Shipping_Client" />
     <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(ModOutputPath)\bin\Win64_Shipping_Client" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
     <Copy SourceFiles="$(ProjectDir)SubModule.xml" DestinationFiles="$(ModOutputPath)\SubModule.xml" />
+    <ItemGroup>
+      <GuiFiles Include="$(ProjectDir)GUI\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(GuiFiles)" DestinationFolder="$(ModOutputPath)\GUI\%(RecursiveDir)" Condition="'@(GuiFiles)' != ''" />
     <Message Text="Deployed CoherentWarAI mod to $(ModOutputPath)" Importance="high" />
   </Target>
 </Project>

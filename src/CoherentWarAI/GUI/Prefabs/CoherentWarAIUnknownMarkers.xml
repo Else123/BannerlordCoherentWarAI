@@ -1,0 +1,31 @@
+<Prefab>
+  <!--
+    Question-mark markers over enemy settlements we have not scouted recently
+    enough. Mirrors the structure of vanilla's own MapTrackers.xml: a
+    full-screen, non-interactive container whose ItemTemplate is positioned
+    with an absolute screen offset per item, rather than a stacking layout -
+    each marker sits wherever its settlement currently projects to.
+  -->
+  <Window>
+    <Widget HeightSizePolicy="StretchToParent" WidthSizePolicy="StretchToParent" DoNotAcceptEvents="true">
+      <Children>
+        <Widget DataSource="{Markers}" HeightSizePolicy="StretchToParent" WidthSizePolicy="StretchToParent" DoNotAcceptEvents="true">
+          <ItemTemplate>
+            <!--
+              ScaledPosition*Offset, not Position*Offset: the view hands over raw
+              screen pixels, and only the Scaled form divides by the UI scale.
+              Binding the unscaled property would place every marker correctly at
+              100% UI scale and nowhere near its settlement at any other.
+            -->
+            <Widget WidthSizePolicy="Fixed" HeightSizePolicy="Fixed" SuggestedWidth="32" SuggestedHeight="32"
+                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                    ScaledPositionXOffset="@ScreenX" ScaledPositionYOffset="@ScreenY"
+                    IsVisible="@IsVisibleOnScreen"
+                    DoNotAcceptEvents="true" ClipContents="false"
+                    Sprite="General\Icons\icon_issue_available" />
+          </ItemTemplate>
+        </Widget>
+      </Children>
+    </Widget>
+  </Window>
+</Prefab>

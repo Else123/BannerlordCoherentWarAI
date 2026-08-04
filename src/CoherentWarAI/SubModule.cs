@@ -60,6 +60,7 @@ namespace CoherentWarAI
                 campaignStarter.AddBehavior(new WarPostureBehavior());
                 campaignStarter.AddBehavior(new WarCoordinatorBehavior());
                 campaignStarter.AddBehavior(new ChokepointMapBehavior());
+                campaignStarter.AddBehavior(new MapMarkerBehavior());
                 campaignStarter.AddBehavior(new SettingsSyncBehavior());
             }
         }

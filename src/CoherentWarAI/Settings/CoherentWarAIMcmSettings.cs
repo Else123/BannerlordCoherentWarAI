@@ -278,6 +278,11 @@ namespace CoherentWarAI.Settings
         [SettingPropertyGroup(IntelligenceGroup, GroupOrder = 7)]
         public float KnowledgeLifetimeHours { get; set; } = 240f;
 
+        [SettingPropertyBool("Show unscouted enemy settlements on the map", Order = 8, RequireRestart = false,
+            HintText = "Draws a question-mark icon over enemy settlements our kingdom has not recently scouted - the same fog-of-war state 'Attack only what is known' already uses to judge targets, made visible. Only shown for fiefs we are at war with; nothing is drawn at peace.")]
+        [SettingPropertyGroup(IntelligenceGroup, GroupOrder = 7)]
+        public bool ShowUnknownSettlementMarkers { get; set; } = true;
+
         // --- 9. Diagnostics ---------------------------------------------------
 
         [SettingPropertyBool("Write a decision log", Order = 0, RequireRestart = true,
@@ -356,6 +361,7 @@ namespace CoherentWarAI.Settings
             target.EnableKnowledgeWeight = EnableKnowledgeWeight;
             target.UnknownTargetPenalty = UnknownTargetPenalty;
             target.KnowledgeLifetimeHours = KnowledgeLifetimeHours;
+            target.ShowUnknownSettlementMarkers = ShowUnknownSettlementMarkers;
 
             target.EnableLogging = EnableLogging;
             target.VerboseScoreLogging = VerboseScoreLogging;

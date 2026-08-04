@@ -180,6 +180,14 @@ namespace CoherentWarAI.Settings
         /// <summary>Most that never having seen a place may reduce its appeal.</summary>
         public float UnknownTargetPenalty = SightingNetwork.DefaultUnknownPenalty;
 
+        /// <summary>
+        /// Draw a question-mark icon over enemy settlements our kingdom has not
+        /// recently scouted - a map visualisation of the same fog-of-war state
+        /// <see cref="Logic.SightingNetwork.KnowledgeWeight"/> already scores
+        /// targets by.
+        /// </summary>
+        public bool ShowUnknownSettlementMarkers = true;
+
         // Bandit hunting - idle defenders police the realm.
         public bool EnableBanditHunting = true;
         public float BanditMaxThreatRatio = BanditHuntPlanner.DefaultMaxThreatRatio;

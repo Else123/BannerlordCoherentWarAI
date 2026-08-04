@@ -17,6 +17,8 @@
   <PropertyGroup>
     <BannerlordBinPath>$(BannerlordPath)\bin\Win64_Shipping_Client</BannerlordBinPath>
     <BannerlordModulesPath>$(BannerlordPath)\Modules</BannerlordModulesPath>
+    <!-- SandBox ships its own view assemblies; the campaign map UI lives here, not in bin. -->
+    <SandBoxBinPath>$(BannerlordPath)\Modules\SandBox\bin\Win64_Shipping_Client</SandBoxBinPath>
     <BannerlordExePath>$(BannerlordPath)\bin\Win64_Shipping_Client\Bannerlord.exe</BannerlordExePath>
     <!-- Mod Configuration Menu (MCM v5), a Steam Workshop item. -->
     <McmBinPath>$(BannerlordPath)\..\..\workshop\content\261550\2859238197\bin\Win64_Shipping_Client</McmBinPath>
