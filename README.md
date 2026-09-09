@@ -1,9 +1,9 @@
-# Bannerlord Coherent War AI
+﻿# Bannerlord Coherent War AI
 
 A gameplay mod for **Mount & Blade II: Bannerlord** that makes the campaign AI
 wage war more coherently. Focus: AI/logic, not graphics.
 
-> **Status: work in progress.** Targets game **v1.4.7** (with the War Sails /
+> **Status: work in progress.** Targets game **v1.4.8** (with the War Sails /
 > Naval DLC). Built as a standalone module on vanilla anchors - not a fork.
 
 ## What it does
