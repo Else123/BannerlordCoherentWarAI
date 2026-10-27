@@ -133,6 +133,9 @@ namespace CoherentWarAI.Behaviors
                 }
 
                 party.SetMoveEngageParty(quarry, party.NavigationCapability);
+                // Feeds the contention counter (AC13 / SPEC SS11.4): a party written
+                // by more than one subsystem the same day is a bug.
+                WarAiStats.RecordPartyWrite(party, "BanditHunt", WarAiStats.WriteChannel.Movement);
                 if (!onHunt)
                 {
                     // Timestamp the chase, not each re-issue, so the give-up bound
@@ -185,6 +188,12 @@ namespace CoherentWarAI.Behaviors
         {
             if (party == null || !party.IsActive || party == MobileParty.MainParty
                 || party.LeaderHero == null || party.Party == null)
+            {
+                return false;
+            }
+            // Precedence ladder (SPEC SS5.2): a party under an active chain-of-command
+            // directive is not unoccupied, so bandit hunting yields to it.
+            if (CommandBehavior.HasDirective(party))
             {
                 return false;
             }

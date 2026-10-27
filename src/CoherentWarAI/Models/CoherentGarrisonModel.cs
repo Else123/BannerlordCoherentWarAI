@@ -2,9 +2,11 @@ using CoherentWarAI.Behaviors;
 using CoherentWarAI.Logic;
 using CoherentWarAI.Settings;
 using TaleWorlds.CampaignSystem;
+using TaleWorlds.CampaignSystem.ComponentInterfaces;
 using TaleWorlds.CampaignSystem.GameComponents;
 using TaleWorlds.CampaignSystem.Party;
 using TaleWorlds.CampaignSystem.Settlements;
+using TaleWorlds.Core;
 
 namespace CoherentWarAI.Models
 {
@@ -20,11 +22,17 @@ namespace CoherentWarAI.Models
     /// Vanilla's results (including its minimum-garrison floors) are scaled rather
     /// than reimplemented, so this stays robust across game updates.
     /// </summary>
-    public class CoherentGarrisonModel : DefaultSettlementGarrisonModel
+    public class CoherentGarrisonModel : SettlementGarrisonModel
     {
+        // Previously registered model of this type; protected member inherited via
+        // MBGameModel<T>, accessed unqualified (see CoherentTargetScoreModel).
+        private SettlementGarrisonModel Base => BaseModel;
+
+        public string BaseModelName => Base?.GetType().Name;
+
         public override int FindNumberOfTroopsToLeaveToGarrison(MobileParty mobileParty, Settlement settlement)
         {
-            int vanilla = base.FindNumberOfTroopsToLeaveToGarrison(mobileParty, settlement);
+            int vanilla = Base.FindNumberOfTroopsToLeaveToGarrison(mobileParty, settlement);
             if (vanilla <= 0)
             {
                 return vanilla;
@@ -51,7 +59,7 @@ namespace CoherentWarAI.Models
 
         public override int FindNumberOfTroopsToTakeFromGarrison(MobileParty mobileParty, Settlement settlement, float defaultIdealGarrisonStrengthPerWalledCenter = 0f)
         {
-            int vanilla = base.FindNumberOfTroopsToTakeFromGarrison(mobileParty, settlement, defaultIdealGarrisonStrengthPerWalledCenter);
+            int vanilla = Base.FindNumberOfTroopsToTakeFromGarrison(mobileParty, settlement, defaultIdealGarrisonStrengthPerWalledCenter);
             if (vanilla <= 0)
             {
                 return vanilla;
@@ -65,7 +73,7 @@ namespace CoherentWarAI.Models
 
         public override int GetMaximumDailyAutoRecruitmentCount(Town town)
         {
-            int vanilla = base.GetMaximumDailyAutoRecruitmentCount(town);
+            int vanilla = Base.GetMaximumDailyAutoRecruitmentCount(town);
 
             CoherentWarAISettings settings = CoherentWarAISettings.Current;
             if (settings == null || !settings.EnableGarrisonThreatAwareness || town?.Settlement == null)
@@ -185,5 +193,9 @@ namespace CoherentWarAI.Models
             float net = hostile - friendly;
             return net < 0f ? 0f : net;
         }
+
+        // Forwarded to the previously registered model - no behaviour of our own.
+        public override ExplainedNumber CalculateBaseGarrisonChange(Settlement settlement, bool includeDescriptions = false) => Base.CalculateBaseGarrisonChange(settlement, includeDescriptions);
+        public override float GetMaximumDailyRepairAmount(Settlement settlement) => Base.GetMaximumDailyRepairAmount(settlement);
     }
 }

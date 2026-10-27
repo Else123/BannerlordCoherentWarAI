@@ -41,7 +41,8 @@ namespace CoherentWarAI
                     + ", garrisons: " + settings.EnableGarrisonThreatAwareness
                     + ", route analysis: " + settings.EnableChokepointAnalysis
                     + ", coordination: " + settings.EnableCoordination
-                    + ", marshal doctrine: " + settings.EnableMarshalDoctrine);
+                    + ", marshal doctrine: " + settings.EnableMarshalDoctrine
+                    + ", chain of command: " + settings.EnableChainOfCommand);
 
                 // Last-registered model wins; we extend the default and call base,
                 // so any other TargetScoreCalculatingModel already registered keeps
@@ -57,6 +58,10 @@ namespace CoherentWarAI
                 campaignStarter.AddBehavior(new OutcomeLogBehavior());
                 campaignStarter.AddBehavior(new BanditHuntBehavior());
                 campaignStarter.AddBehavior(new SightingNetworkBehavior());
+                // Registered before WarPostureBehavior so it runs AFTER it (reverse
+                // registration, see the comment below): it consumes the Offense
+                // holders WarPostureBehavior.AppointMarshals publishes this same tick.
+                campaignStarter.AddBehavior(new CommandBehavior());
                 campaignStarter.AddBehavior(new WarPostureBehavior());
                 campaignStarter.AddBehavior(new WarCoordinatorBehavior());
                 campaignStarter.AddBehavior(new ChokepointMapBehavior());

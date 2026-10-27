@@ -2,9 +2,12 @@ using CoherentWarAI.Behaviors;
 using CoherentWarAI.Logic;
 using CoherentWarAI.Settings;
 using TaleWorlds.CampaignSystem;
+using TaleWorlds.CampaignSystem.ComponentInterfaces;
 using TaleWorlds.CampaignSystem.GameComponents;
 using TaleWorlds.CampaignSystem.Party;
+using TaleWorlds.Core;
 using TaleWorlds.Library;
+using TaleWorlds.Localization;
 
 namespace CoherentWarAI.Models
 {
@@ -20,11 +23,17 @@ namespace CoherentWarAI.Models
     /// Defensive lords are unaffected - they were never going to raise an army - and
     /// the player is never restricted.
     /// </summary>
-    public class CoherentArmyManagementModel : DefaultArmyManagementCalculationModel
+    public class CoherentArmyManagementModel : ArmyManagementCalculationModel
     {
+        // Previously registered model of this type; protected member inherited via
+        // MBGameModel<T>, accessed unqualified (see CoherentTargetScoreModel).
+        private ArmyManagementCalculationModel Base => BaseModel;
+
+        public string BaseModelName => Base?.GetType().Name;
+
         public override bool CanLordCreateArmy(MobileParty leaderParty, out MBList<MobileParty> possibleArmyMembers)
         {
-            bool vanillaAllows = base.CanLordCreateArmy(leaderParty, out possibleArmyMembers);
+            bool vanillaAllows = Base.CanLordCreateArmy(leaderParty, out possibleArmyMembers);
             if (!vanillaAllows)
             {
                 return false;
@@ -58,7 +67,14 @@ namespace CoherentWarAI.Models
                 return true;
             }
 
-            if (MarshalPlanner.MayRaiseArmy(WarPostureBehavior.IsMarshal(leaderParty), doctrineEnabled: true))
+            // Decision D1 (Slice 2a): army raising keys on Offense specifically, not
+            // "holds any domain" - a Defense or Naval holder is busy, not offensive,
+            // and "one attacks, the rest defend" is the doctrine this model exists to
+            // enforce. Feature off: today's expression, verbatim.
+            bool holdsOffense = settings.EnableChainOfCommand
+                ? CommandBehavior.HoldsDomain(leaderParty.LeaderHero, Domain.Offense)
+                : WarPostureBehavior.IsMarshal(leaderParty);
+            if (MarshalPlanner.MayRaiseArmy(holdsOffense, doctrineEnabled: true))
             {
                 return true;
             }
@@ -68,5 +84,25 @@ namespace CoherentWarAI.Models
             possibleArmyMembers = null;
             return false;
         }
+
+        // Forwarded to the previously registered model - no behaviour of our own.
+        public override float AIMobilePartySizeRatioToCallToArmy => Base.AIMobilePartySizeRatioToCallToArmy;
+        public override float PlayerMobilePartySizeRatioToCallToArmy => Base.PlayerMobilePartySizeRatioToCallToArmy;
+        public override float MinimumNeededFoodInDaysToCallToArmy => Base.MinimumNeededFoodInDaysToCallToArmy;
+        public override float MaximumDistanceToCallToArmy => Base.MaximumDistanceToCallToArmy;
+        public override int InfluenceValuePerGold => Base.InfluenceValuePerGold;
+        public override int AverageCallToArmyCost => Base.AverageCallToArmyCost;
+        public override int CohesionThresholdForDispersion => Base.CohesionThresholdForDispersion;
+        public override float MaximumWaitTime => Base.MaximumWaitTime;
+        public override bool CanPlayerCreateArmy(out TextObject disabledReason) => Base.CanPlayerCreateArmy(out disabledReason);
+        public override int CalculatePartyInfluenceCost(MobileParty armyLeaderParty, MobileParty party) => Base.CalculatePartyInfluenceCost(armyLeaderParty, party);
+        public override float DailyBeingAtArmyInfluenceAward(MobileParty armyMemberParty) => Base.DailyBeingAtArmyInfluenceAward(armyMemberParty);
+        public override int CalculateTotalInfluenceCost(Army army, float percentage) => Base.CalculateTotalInfluenceCost(army, percentage);
+        public override float GetPartySizeScore(MobileParty party) => Base.GetPartySizeScore(party);
+        public override bool CheckPartyEligibility(MobileParty party, out TextObject explanation) => Base.CheckPartyEligibility(party, out explanation);
+        public override int GetPartyRelation(Hero hero) => Base.GetPartyRelation(hero);
+        public override ExplainedNumber CalculateDailyCohesionChange(Army army, bool includeDescriptions = false) => Base.CalculateDailyCohesionChange(army, includeDescriptions);
+        public override int CalculateNewCohesion(Army army, PartyBase newParty, int calculatedCohesion, int sign) => Base.CalculateNewCohesion(army, newParty, calculatedCohesion, sign);
+        public override int GetCohesionBoostInfluenceCost(Army army, int percentageToBoost = 100) => Base.GetCohesionBoostInfluenceCost(army, percentageToBoost);
     }
 }

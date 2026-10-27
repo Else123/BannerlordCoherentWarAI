@@ -32,6 +32,9 @@
     <Compile Include="..\..\src\CoherentWarAI\Logic\ScoutingQuality.cs" Link="Logic\ScoutingQuality.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\SightingNetwork.cs" Link="Logic\SightingNetwork.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\BanditHuntPlanner.cs" Link="Logic\BanditHuntPlanner.cs" />
+    <Compile Include="..\..\src\CoherentWarAI\Logic\ChainOfCommand.cs" Link="Logic\ChainOfCommand.cs" />
+    <Compile Include="..\..\src\CoherentWarAI\Logic\NavalPatrolPlanner.cs" Link="Logic\NavalPatrolPlanner.cs" />
+    <Compile Include="..\..\src\CoherentWarAI\Logic\DelegationPlanner.cs" Link="Logic\DelegationPlanner.cs" />
   </ItemGroup>
 
 </Project>

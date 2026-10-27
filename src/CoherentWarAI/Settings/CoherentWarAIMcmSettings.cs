@@ -31,6 +31,7 @@ namespace CoherentWarAI.Settings
         private const string GarrisonGroup = "7. Garrisons and gateways";
         private const string IntelligenceGroup = "8. What the AI knows";
         private const string DiagnosticsGroup = "9. Diagnostics";
+        private const string CommandGroup = "10. Chain of command";
 
         // --- 1. Defence first -------------------------------------------------
 
@@ -295,6 +296,33 @@ namespace CoherentWarAI.Settings
         [SettingPropertyGroup(DiagnosticsGroup, GroupOrder = 8)]
         public bool VerboseScoreLogging { get; set; } = false;
 
+        // --- 10. Chain of command ----------------------------------------------
+
+        [SettingPropertyBool("Durable chain of command", Order = 0, RequireRestart = false,
+            HintText = "Today's marshal is re-decided from scratch every day and only ever vetoes army-raising. With this on, a realm appoints durable, term-based holders for Defence, Offence and (where it has a fleet) Naval, scored by Leadership and Tactics as well as strength. Off reproduces today's one-day marshal exactly and writes no Command log lines.")]
+        [SettingPropertyGroup(CommandGroup, GroupOrder = 9)]
+        public bool EnableChainOfCommand { get; set; } = true;
+
+        [SettingPropertyBool("Generate naval orders", Order = 1, RequireRestart = false,
+            HintText = "Lets a realm's Naval domain holder issue patrol directives to naval-capable lords. Off leaves ships to vanilla's own navigation with no coordination between them, even with chain of command otherwise on.")]
+        [SettingPropertyGroup(CommandGroup, GroupOrder = 9)]
+        public bool EnableNavalOrders { get; set; } = true;
+
+        [SettingPropertyFloatingInteger("Weight of command skill", 0f, 2f, "0.00", Order = 2, RequireRestart = false,
+            HintText = "How much Leadership and Tactics decide who becomes a domain holder, on top of strength and rank, and how long that holder's orders stay valid - 24 to 96 hours instead of a flat 48. 0 is a no-op: selection and order lifetime are both byte-identical to a build that never read either skill.")]
+        [SettingPropertyGroup(CommandGroup, GroupOrder = 9)]
+        public float MarshalCommandWeight { get; set; } = MarshalPlanner.DefaultCommandWeight;
+
+        [SettingPropertyInteger("Term length (days)", 1, 30, "0", Order = 3, RequireRestart = false,
+            HintText = "How long a domain holder keeps the post before the realm reconsiders. Shorter reacts faster to a challenger; longer means fewer disruptive hand-overs.")]
+        [SettingPropertyGroup(CommandGroup, GroupOrder = 9)]
+        public int MarshalTermDays { get; set; } = 7;
+
+        [SettingPropertyInteger("Naval patrols per realm", 1, 6, "0", Order = 4, RequireRestart = false,
+            HintText = "Upper bound on simultaneous patrol lanes a realm's admiral runs at once, however many ports or ships it has.")]
+        [SettingPropertyGroup(CommandGroup, GroupOrder = 9)]
+        public int MaxNavalPatrolsPerRealm { get; set; } = 2;
+
         /// <summary>
         /// Copies the page into the plain settings object the AI logic reads.
         /// Values not exposed here keep their defaults - they are derived or too
@@ -365,6 +393,12 @@ namespace CoherentWarAI.Settings
 
             target.EnableLogging = EnableLogging;
             target.VerboseScoreLogging = VerboseScoreLogging;
+
+            target.EnableChainOfCommand = EnableChainOfCommand;
+            target.EnableNavalOrders = EnableNavalOrders;
+            target.MarshalCommandWeight = MarshalCommandWeight;
+            target.MarshalTermDays = MarshalTermDays;
+            target.MaxNavalPatrolsPerRealm = MaxNavalPatrolsPerRealm;
         }
     }
 }
