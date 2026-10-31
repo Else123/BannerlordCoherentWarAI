@@ -44,7 +44,9 @@ namespace CoherentWarAI.Behaviors
                 + ", coordination: " + settings.EnableCoordination
                 + ", marshal doctrine: " + settings.EnableMarshalDoctrine
                 + ", enemy focus: " + settings.EnableEnemyFocus
-                + ", holdability: " + settings.EnableHoldability);
+                + ", holdability: " + settings.EnableHoldability
+                + ", chain of command: " + settings.EnableChainOfCommand
+                + ", naval orders: " + settings.EnableNavalOrders);
             WarAiLog.Flush();
         }
 

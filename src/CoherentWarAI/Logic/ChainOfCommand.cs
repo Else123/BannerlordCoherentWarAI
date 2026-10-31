@@ -106,6 +106,14 @@ namespace CoherentWarAI.Logic
         public float ExpiresAtHours;
         public Provenance Provenance;
 
+        /// <summary>
+        /// Whether this order names the port settlement it is anchored to. A naval patrol
+        /// must be: vanilla's lord naval patrol reads the party's TargetSettlement (its
+        /// PortPosition while the lord is still ashore, its faction for the patrol
+        /// radius once at sea), so a point-only naval patrol crashes the AI tick.
+        /// </summary>
+        public bool HasPortAnchor => TargetIsPort && !string.IsNullOrEmpty(TargetSettlementId);
+
         /// <summary>Whether this order has not yet expired.</summary>
         public bool IsActive(float nowHours)
         {

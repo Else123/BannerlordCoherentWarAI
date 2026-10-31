@@ -372,6 +372,54 @@ namespace CoherentWarAI.Tests
             Assert.False(order.IsBinding(49f));
         }
 
+        // ---- Order.HasPortAnchor (naval patrol dispatch guard) ----
+        // Vanilla's lord naval patrol (MobilePartyAi.GetNavalPatrolBehavior, NavalDLC
+        // GetPatrolRadius) dereferences TargetSettlement, so a naval patrol may only be
+        // dispatched when it names the port it is anchored to.
+
+        [Fact]
+        public void Order_HasPortAnchor_FalseForPointOnlyNavalPatrol()
+        {
+            var order = MakeOrder(Bindingness.Directive, expiresAtHours: 48f);
+            Assert.False(order.HasPortAnchor);
+        }
+
+        [Fact]
+        public void Order_HasPortAnchor_TrueWhenSettlementNamedAndTargetingPort()
+        {
+            var order = MakeOrder(Bindingness.Directive, expiresAtHours: 48f);
+            order.TargetSettlementId = "town_EN1";
+            order.TargetIsPort = true;
+            Assert.True(order.HasPortAnchor);
+        }
+
+        [Fact]
+        public void Order_HasPortAnchor_FalseWhenSettlementNamedButNotTargetingPort()
+        {
+            var order = MakeOrder(Bindingness.Directive, expiresAtHours: 48f);
+            order.TargetSettlementId = "town_EN1";
+            order.TargetIsPort = false;
+            Assert.False(order.HasPortAnchor);
+        }
+
+        [Fact]
+        public void Order_HasPortAnchor_FalseWhenTargetingPortWithoutSettlement()
+        {
+            var order = MakeOrder(Bindingness.Directive, expiresAtHours: 48f);
+            order.TargetSettlementId = null;
+            order.TargetIsPort = true;
+            Assert.False(order.HasPortAnchor);
+        }
+
+        [Fact]
+        public void Order_HasPortAnchor_FalseWhenTargetingPortWithEmptySettlement()
+        {
+            var order = MakeOrder(Bindingness.Directive, expiresAtHours: 48f);
+            order.TargetSettlementId = "";
+            order.TargetIsPort = true;
+            Assert.False(order.HasPortAnchor);
+        }
+
         // ---- Order.Supersedes total ordering (AC7) ----
 
         private static Order MakeOrderFor(Provenance provenance, OrderScope scope, int priority, float issuedAtHours, Domain domainScope = Domain.Defense) => new Order

@@ -4,7 +4,9 @@ using CoherentWarAI.Diagnostics;
 using CoherentWarAI.Logic;
 using CoherentWarAI.Models;
 using CoherentWarAI.Settings;
+using Helpers;
 using TaleWorlds.CampaignSystem;
+using TaleWorlds.CampaignSystem.Actions;
 using TaleWorlds.CampaignSystem.CharacterDevelopment;
 using TaleWorlds.CampaignSystem.Party;
 using TaleWorlds.CampaignSystem.Party.PartyComponents;
@@ -550,11 +552,13 @@ namespace CoherentWarAI.Behaviors
                     AddresseeId = lord.StringId,
                     DomainScope = Domain.Naval,
                     Verb = OrderVerb.Patrol,
-                    TargetSettlementId = "",
+                    // The anchor port is the patrol's TargetSettlement at dispatch:
+                    // vanilla's lord naval patrol cannot run without one (Order.HasPortAnchor).
+                    TargetSettlementId = anchorSettlement.StringId,
                     TargetX = dispatchPosition.x,
                     TargetY = dispatchPosition.y,
                     IsNaval = true,
-                    TargetIsPort = false,
+                    TargetIsPort = true,
                     Bindingness = Bindingness.Directive,
                     Priority = 2,
                     IssuedAtHours = nowHours,
@@ -640,7 +644,7 @@ namespace CoherentWarAI.Behaviors
             }
         }
 
-        /// <summary>Re-issues movement for each still-active directive; drops orders whose addressee no longer resolves to a live party.</summary>
+        /// <summary>Re-issues movement for each still-active directive; drops orders whose addressee no longer resolves to a live party, and naval patrols <see cref="NavalPatrolDispatch.Decide"/> rules undispatchable.</summary>
         private static void DispatchActiveOrders()
         {
             List<DomainKey<Hero>> toRemove = null;
@@ -668,18 +672,67 @@ namespace CoherentWarAI.Behaviors
 
                 if (order.IsNaval && order.Verb == OrderVerb.Patrol)
                 {
-                    // Re-check at dispatch, not only at issue: a lord can lose his
-                    // last ship between the two (SPEC SS4.1).
-                    if (!party.HasNavalNavigationCapability)
+                    // A lord's naval patrol must be anchored to a port settlement:
+                    // MobilePartyAi.GetNavalPatrolBehavior reads TargetSettlement.PortPosition
+                    // while the lord is still ashore, and NavalDLC's GetPatrolRadius reads
+                    // TargetSettlement.MapFaction once he is at sea. SetMovePatrolAroundPoint
+                    // clears TargetSettlement, which crashed the parallel AI tick.
+                    Settlement anchor = order.HasPortAnchor ? Settlement.Find(order.TargetSettlementId) : null;
+                    // Re-checked at dispatch, not only at issue: a lord can lose his last
+                    // ship between the two (SPEC SS4.1).
+                    bool hasNavalCapability = party.HasNavalNavigationCapability;
+
+                    // Same route vanilla's AiPatrollingBehavior + AiPartyThinkBehavior take
+                    // for a naval patrol: best navigation type to the port (Naval, or All
+                    // for a lord who must first walk to a port) plus the exit-from-port flag.
+                    MobileParty.NavigationType navigationType = MobileParty.NavigationType.None;
+                    bool isFromPort = false;
+                    if (anchor != null && anchor.HasPort && hasNavalCapability)
+                    {
+                        AiHelper.GetBestNavigationTypeAndAdjustedDistanceOfSettlementForMobileParty(
+                            party, anchor, true, out navigationType, out float _, out isFromPort);
+                    }
+
+                    NavalDispatchVerdict verdict = NavalPatrolDispatch.Decide(new NavalDispatchFacts
+                    {
+                        // Army leaders are dropped, never dispatched: vanilla's patrol action
+                        // sets Army.ArmyType = Defender and Army.AiBehaviorObject on every
+                        // call, which would rewrite what the army does each hour (D1/AC25a).
+                        LeadsArmy = party.Army != null && party.Army.LeaderParty == party,
+                        HasPortAnchor = order.HasPortAnchor,
+                        AnchorFound = anchor != null,
+                        AnchorHasPort = anchor != null && anchor.HasPort,
+                        AnchorOwnedByPartyFaction = anchor != null && anchor.MapFaction == party.MapFaction,
+                        HasNavalCapability = hasNavalCapability,
+                        HasRoute = navigationType != MobileParty.NavigationType.None
+                    });
+
+                    if (NavalPatrolDispatch.IsDrop(verdict))
+                    {
+                        // Logged once per order: removal guarantees it is not seen again.
+                        WarAiLog.Write("Command", string.Format(
+                            "{0} drops naval patrol at {1}: {2}",
+                            lord.Name, anchor != null ? anchor.Name.ToString() : order.TargetSettlementId, verdict));
+                        if (toRemove == null)
+                        {
+                            toRemove = new List<DomainKey<Hero>>();
+                        }
+                        toRemove.Add(pair.Key);
+                        continue;
+                    }
+                    if (verdict != NavalDispatchVerdict.Dispatch)
                     {
                         continue;
                     }
 
-                    CampaignVec2 point = new CampaignVec2(new Vec2(order.TargetX, order.TargetY), isOnLand: false);
                     // Vanilla's think loop reverts SetMove* within hours, so this is
-                    // re-issued every hour rather than trusted to stick - the lesson
-                    // already paid for at BanditHuntBehavior.cs:119-126.
-                    party.SetMovePatrolAroundPoint(point, MobileParty.NavigationType.Naval);
+                    // re-applied every hour rather than trusted to stick - the lesson
+                    // already paid for at BanditHuntBehavior.cs:119-126. SetPartyAiAction
+                    // only rewrites movement when it differs, so an ongoing patrol is not
+                    // reset back to its centre each hour - as long as AiHelper keeps
+                    // returning the same navigation type. A Naval/All flip near the coast
+                    // differs and resets the patrol once, which is harmless.
+                    SetPartyAiAction.GetActionForPatrollingAroundSettlement(party, anchor, navigationType, isFromPort, true);
                     // Domain-qualified so the contention counter can see two of our own
                     // domain generators racing on one party (WarAiStats.cs, untouched by
                     // this slice). 2b further qualifies this by verb once a second Naval

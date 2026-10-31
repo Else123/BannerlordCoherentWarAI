@@ -124,6 +124,7 @@
     <Compile Include="Logic\ChainOfCommand.cs" />
     <Compile Include="Logic\ChokepointAnalyzer.cs" />
     <Compile Include="Logic\EngagementHysteresis.cs" />
+    <Compile Include="Logic\NavalPatrolDispatch.cs" />
     <Compile Include="Logic\NavalPatrolPlanner.cs" />
     <Compile Include="Logic\GarrisonPlanner.cs" />
     <Compile Include="Logic\PosturePlanner.cs" />

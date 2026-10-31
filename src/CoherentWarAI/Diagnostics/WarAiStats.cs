@@ -56,7 +56,7 @@ namespace CoherentWarAI.Diagnostics
 
         /// <summary>
         /// The field a write actually drives. Posture writes <c>PartyObjective</c>, while
-        /// Command/BanditHunt drive movement (<c>SetMovePatrolAroundPoint</c> /
+        /// Command/BanditHunt drive movement (<c>SetPartyAiAction.GetActionForPatrollingAroundSettlement</c> /
         /// <c>SetMoveEngageParty</c>) - two different fields by design (SPEC SS5.2: posture
         /// is the single writer of <c>PartyObjective</c>). The contention counter below
         /// only flags two subsystems writing the *same* channel, not merely the same party.

@@ -17,7 +17,11 @@
 
 .PARAMETER Mode
     Which in-game session this log came from - changes how AC1/AC2 (model chain
-    naming) and AC10 (feature-off silence) are interpreted:
+    naming) and AC10 (feature-off silence) are interpreted. AC9, AC21 and the
+    liveness part of AC13/AC23 (tracked > 0, interior-day flush, MinDays) apply to
+    WarSails only and report "N/A for mode" otherwise; AC20 is N/A for FeatureOff
+    (no delegations with the feature off); "non-zero contention" is a
+    FAIL in every mode (a real double-write is always a bug):
       WarSails   - War Sails (NavalDLC) enabled, chain of command enabled.
       NoDlc      - War Sails disabled, chain of command enabled.
       FeatureOff - War Sails enabled, chain of command (EnableChainOfCommand) disabled.
@@ -201,7 +205,10 @@ foreach ($day in $windowDays9) {
     }
 }
 
-if ($null -ne $firstDelegatesNaval -and $null -ne $firstOrdersPatrol) {
+if ($Mode -ne 'WarSails') {
+    Add-Result 'AC9' 'N/A for mode' 'Naval delegation/patrol needs War Sails with the feature on; only -Mode WarSails applies.'
+}
+elseif ($null -ne $firstDelegatesNaval -and $null -ne $firstOrdersPatrol) {
     Add-Result 'AC9' 'PASS' "First delegation: $firstDelegatesNaval | First order: $firstOrdersPatrol"
 }
 elseif ($dayOrder.Count -lt 3) {
@@ -245,7 +252,10 @@ foreach ($day in $windowDays20) {
 }
 $countsSummary20 = $perDayCounts20 -join ' '
 
-if ($defenseFound -and $offenseFound) {
+if ($Mode -eq 'FeatureOff') {
+    Add-Result 'AC20' 'N/A for mode' 'Defense/Offense delegation needs the feature on; -Mode FeatureOff has no delegations by design (AC10).'
+}
+elseif ($defenseFound -and $offenseFound) {
     Add-Result 'AC20' 'PASS' "Defense: $firstDefense | Offense: $firstOffense | Per-day counts: $countsSummary20"
 }
 elseif ($dayOrder.Count -lt 5) {
@@ -272,7 +282,10 @@ foreach ($line in $rawLines) {
     }
 }
 
-if ($null -ne $navalDelegateLine -and $null -ne $navalOrderLine) {
+if ($Mode -ne 'WarSails') {
+    Add-Result 'AC21' 'N/A for mode' 'Naval line shape needs War Sails with the feature on; only -Mode WarSails applies.'
+}
+elseif ($null -ne $navalDelegateLine -and $null -ne $navalOrderLine) {
     Add-Result 'AC21' 'PASS' "$navalDelegateLine | $navalOrderLine"
 }
 elseif ($dayOrder.Count -eq 0) {
@@ -348,6 +361,9 @@ $perDayText = $perDayCounts -join ', '
 
 if ($nonZeroContention.Count -gt 0) {
     Add-Result 'AC13/AC23' 'FAIL' "Non-zero contention reported: $($nonZeroContention -join ' | ')"
+}
+elseif ($Mode -ne 'WarSails') {
+    Add-Result 'AC13/AC23' 'N/A for mode' "Liveness checks need the naval dispatch (day-1 writer); only -Mode WarSails applies. Hard check still ran: $($allContention.Count) [Contention] line(s), none non-zero."
 }
 elseif ($trackedZeroOutsideLaunch.Count -gt 0) {
     Add-Result 'AC13/AC23' 'FAIL' "'tracked 0 parties' outside the launch tick - the counter recorded no write on a normal day: $($trackedZeroOutsideLaunch -join ' | ')"
