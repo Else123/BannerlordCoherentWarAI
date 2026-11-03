@@ -19,4 +19,4 @@ and `TestRig.Harness.dll` from that folder and copies its own DLL, PDB and `SubM
 
 | Id | Class | Checks |
 |----|-------|--------|
-| `coherentwarai.health` | `HealthScenario` | all 9 campaign behaviors are registered; the 3 GameModels (target score, garrison, army management) are the active ones. Runs with time stopped. As a health scenario it runs before and after a soak; the second run also checks that the mod log has no error markers since the first. |
+| `coherentwarai.health` | `HealthScenario` | all 9 campaign behaviors are registered; the 3 GameModels (target score, garrison, army management) are the active ones. Runs with time stopped. As a health scenario it runs before and after a soak; the second run also checks that the mod log has no `[Error]` line since the first. That is a tripwire only: the mod has no catch sites today and `WarAiLog` is gated by the MCM `EnableLogging` setting; uncaught exceptions are covered by the rig's exception classification (`exceptions.own`). |

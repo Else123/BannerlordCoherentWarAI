@@ -53,10 +53,12 @@ namespace CoherentWarAI.Scenarios
 
         // F-S6-6. The harness calls a health scenario twice on this same instance: before the soak
         // (baseline) and after it. The first call records the log length, the second one reads
-        // only what was appended since. WarAiLog has no error level, so the markers cover the
-        // category tags an error line would use plus raw exception text; today none is emitted,
-        // which makes this a tripwire for future error logging.
-        private static readonly string[] ErrorMarkers = { "[Error]", "[Exception]", "Exception" };
+        // only what was appended since. This is a tripwire only: the mod has no catch sites today,
+        // so nothing writes "[Error]", and WarAiLog is gated by the MCM EnableLogging setting
+        // anyway. Raw "Exception" text is deliberately not matched: it would also hit harmless
+        // log text. Uncaught exceptions never reach the mod log; the rig's exception
+        // classification (exceptions.own) covers those.
+        private static readonly string[] ErrorMarkers = { "[Error]" };
 
         private bool _baselineTaken;
         private string _baselinePath;
