@@ -32,8 +32,19 @@
     Defaults to 10 for -Mode WarSails, 3 otherwise (matching the three-run protocol
     in INGAME-TEST-PROTOCOL.md).
 
+.PARAMETER ResultPath
+    Optional. When set, the verdict table is also written to this path as UTF-8 JSON
+    (no BOM) for machine consumers such as the test rig runner:
+      { "schema": 1, "mode": "<Mode>", "days": <parsed days>,
+        "rows": [ { "ac": "AC1", "verdict": "PASS", "evidence": "..." }, ... ] }
+    The console table and the exit codes are unchanged. Nothing is written when the
+    log file is missing (exit 1 before parsing).
+
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File tools\Check-CommandLog.ps1 -Mode WarSails
+    powershell -NoProfile -File tools\Check-CommandLog.ps1 -Mode WarSails
+
+.EXAMPLE
+    powershell -NoProfile -File tools\Check-CommandLog.ps1 -LogPath <job>\r1\CoherentWarAI.log -Mode FeatureOff -MinDays 30 -ResultPath <job>\r1\command-log.json
 #>
 
 param(
@@ -43,7 +54,9 @@ param(
     [ValidateSet('WarSails', 'NoDlc', 'FeatureOff')]
     [string]$Mode,
 
-    [int]$MinDays = -1
+    [int]$MinDays = -1,
+
+    [string]$ResultPath = ''
 )
 
 Set-StrictMode -Version 2
@@ -455,9 +468,10 @@ else {
 }
 
 # ---------------------------------------------------------------------------
-# AC25a - army composition cannot be read from the log at all.
+# AC25a - army composition cannot be read from the log at all; it is judged
+# across a whole WarSails/FeatureOff job by CW-1 (tools\Compare-Ac25a.ps1).
 # ---------------------------------------------------------------------------
-Add-Result 'AC25a' 'MANUAL' 'Army composition cannot be evaluated from the log. Manually verify (COMMAND-SLICE-2A.md AC25a): over the same run as AC20/AC23, the set of lords who raise an army - and the per-realm army count in the daily digest - matches a pre-chain-of-command (EnableChainOfCommand=false) run on the same seed; no lord who holds only Defense or only Naval (never Offense, never an attacker/marshal slot) ever leads an army.'
+Add-Result 'AC25a' 'MANUAL' 'Army composition cannot be evaluated from a single mod log. It is judged by CW-1 (coherentwarai.ac25a-digest): tools\Compare-Ac25a.ps1 over a job of WarSails and FeatureOff runs on several seeds checks that no non-ruler lord who holds only Defense or Naval (never Offense, never MARSHAL/attacks) leads an army, and compares total army-days WarSails vs FeatureOff (COMMAND-SLICE-2A.md AC25a).'
 
 # ---------------------------------------------------------------------------
 # Print the table and finish.
@@ -473,6 +487,17 @@ Write-Host ('{0,-10} | {1,-20} | {2}' -f 'AC', 'Verdict', 'Evidence')
 Write-Host (('-' * 10) + '-+-' + ('-' * 20) + '-+-' + ('-' * 40))
 foreach ($r in $results) {
     Write-Host ('{0,-10} | {1,-20} | {2}' -f $r.AC, $r.Verdict, $r.Evidence)
+}
+
+if ($ResultPath) {
+    $resultDoc = [ordered]@{
+        schema = 1
+        mode   = $Mode
+        days   = $dayCount
+        rows   = @($results | ForEach-Object { [ordered]@{ ac = $_.AC; verdict = $_.Verdict; evidence = $_.Evidence } })
+    }
+    $resultFile = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ResultPath)
+    [System.IO.File]::WriteAllText($resultFile, (ConvertTo-Json -InputObject $resultDoc -Depth 4), (New-Object System.Text.UTF8Encoding $false))
 }
 
 $failRows = @($results | Where-Object { $_.Verdict -eq 'FAIL' })

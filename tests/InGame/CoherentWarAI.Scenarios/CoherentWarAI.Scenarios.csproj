@@ -60,12 +60,21 @@
       <HintPath>$(BannerlordBinPath)\TaleWorlds.Library.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="TaleWorlds.Localization">
+      <HintPath>$(BannerlordBinPath)\TaleWorlds.Localization.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="TaleWorlds.ObjectSystem">
+      <HintPath>$(BannerlordBinPath)\TaleWorlds.ObjectSystem.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="TaleWorlds.MountAndBlade">
       <HintPath>$(BannerlordBinPath)\TaleWorlds.MountAndBlade.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Ac25aDigestScenario.cs" />
     <Compile Include="HealthScenario.cs" />
     <Compile Include="ScenariosSubModule.cs" />
   </ItemGroup>
