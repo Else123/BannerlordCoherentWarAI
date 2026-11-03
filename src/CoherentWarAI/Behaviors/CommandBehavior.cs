@@ -158,11 +158,27 @@ namespace CoherentWarAI.Behaviors
             _offenseHolders[kingdom] = set;
         }
 
+        /// <summary>
+        /// Clears the Offense holders a previous campaign in this process left in the
+        /// static. Done here rather than in <see cref="OnSessionLaunched"/>: the set is
+        /// written by <see cref="WarPostureBehavior"/>'s own session-launch listener,
+        /// and the engine runs session-launch listeners in an order this behavior does
+        /// not control (reverse registration, and other mods add theirs). Behaviors are
+        /// constructed in <c>OnGameStart</c>, before any campaign event fires, for a
+        /// new game and for a load alike - so this reset can never discard a set that
+        /// was already published this session.
+        /// </summary>
+        public CommandBehavior()
+        {
+            _offenseHolders = new Dictionary<Kingdom, HashSet<Hero>>();
+        }
+
         public override void RegisterEvents()
         {
             CampaignEvents.DailyTickEvent.AddNonSerializedListener(this, OnDailyTick);
             CampaignEvents.HourlyTickEvent.AddNonSerializedListener(this, OnHourlyTick);
             CampaignEvents.OnSessionLaunchedEvent.AddNonSerializedListener(this, OnSessionLaunched);
+            CampaignEvents.OnAfterSessionLaunchedEvent.AddNonSerializedListener(this, OnAfterSessionLaunched);
         }
 
         /// <summary>Every domain holder and order is derived daily; nothing to save (Slice 1).</summary>
@@ -175,7 +191,7 @@ namespace CoherentWarAI.Behaviors
             _delegations = new Dictionary<Kingdom, DelegationTable>();
             _orders = new Dictionary<DomainKey<Hero>, Order>();
             _ordersByParty = new Dictionary<DomainKey<MobileParty>, Order>();
-            _offenseHolders = new Dictionary<Kingdom, HashSet<Hero>>();
+            // _offenseHolders is deliberately not reset here - see the constructor.
             _challengers = new Dictionary<Kingdom, Dictionary<Domain, ChallengerStreak>>();
             // Statics survive a second campaign in the same process; the contention
             // counter must not carry yesterday's (or a previous campaign's) pending
@@ -187,6 +203,33 @@ namespace CoherentWarAI.Behaviors
             LogChain();
 
             OnDailyTick();
+        }
+
+        /// <summary>
+        /// Reports the Offense holders in effect once every session-launch listener -
+        /// ours and other mods' - has run, so the count reflects the final launch-time
+        /// set whatever order those listeners ran in. The exact text is parsed by the
+        /// test rig's log comparer; do not reword it.
+        /// </summary>
+        private void OnAfterSessionLaunched(CampaignGameStarter starter)
+        {
+            CoherentWarAISettings settings = CoherentWarAISettings.Current;
+            if (settings == null || !settings.EnableChainOfCommand)
+            {
+                return;
+            }
+
+            int kingdomsWithHolders = 0;
+            foreach (HashSet<Hero> holders in _offenseHolders.Values)
+            {
+                if (holders.Count > 0)
+                {
+                    kingdomsWithHolders++;
+                }
+            }
+            WarAiLog.Write("Command", string.Format(
+                "Offense holders from session launch: {0} kingdom(s)", kingdomsWithHolders));
+            WarAiLog.Flush();
         }
 
         /// <summary>
