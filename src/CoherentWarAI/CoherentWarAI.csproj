@@ -117,6 +117,7 @@
     <Compile Include="Logic\ScoreComposer.cs" />
     <Compile Include="Logic\ScoutingQuality.cs" />
     <Compile Include="Logic\SightingNetwork.cs" />
+    <Compile Include="Logic\SightingTally.cs" />
     <Compile Include="Logic\StrategicPriority.cs" />
     <Compile Include="Models\CoherentArmyManagementModel.cs" />
     <Compile Include="Diagnostics\WarAiLog.cs" />

@@ -195,6 +195,37 @@ namespace CoherentWarAI.Logic
             return indices;
         }
 
+        /// <summary>
+        /// <see cref="RankPatrolAddressees(bool[], float[])"/> without the candidates
+        /// marked in <paramref name="leadsArmy"/>. A lord leading an army is never
+        /// dispatched on a patrol (<see cref="NavalPatrolDispatch.Decide"/> drops it,
+        /// <see cref="NavalDispatchVerdict.DropLeadsArmy"/>), so a lane handed to him
+        /// would stay unmanned; leaving him out lets it go to the next lord instead.
+        /// The result indexes the caller's candidate list, as with the unfiltered
+        /// ranking; <paramref name="leadsArmy"/> must be the same length as
+        /// <paramref name="isAggressive"/>. A null <paramref name="leadsArmy"/> excludes nobody.
+        /// </summary>
+        public static int[] RankPatrolAddressees(bool[] isAggressive, float[] score, bool[] leadsArmy)
+        {
+            int[] ranked = RankPatrolAddressees(isAggressive, score);
+            if (leadsArmy == null)
+            {
+                return ranked;
+            }
+
+            int[] addressable = new int[ranked.Length];
+            int count = 0;
+            foreach (int index in ranked)
+            {
+                if (!leadsArmy[index])
+                {
+                    addressable[count++] = index;
+                }
+            }
+            Array.Resize(ref addressable, count);
+            return addressable;
+        }
+
         private static float NetThreat(PortSignal port)
         {
             return port.ThreatIntensity - port.AllyIntensity;

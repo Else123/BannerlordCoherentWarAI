@@ -364,5 +364,48 @@ namespace CoherentWarAI.Tests
                 Assert.Equal(i, sorted[i]);
             }
         }
+
+        // ---- Army leaders are never addressed (log analysis 2026-11-03) ----
+        //
+        // Defect: the ranking handed army leaders patrol lanes, and dispatch drops every
+        // such order the next hour (NavalPatrolDispatch DropLeadsArmy), leaving the lane
+        // unmanned for the day. A lord leading an army cannot be addressed at all, so
+        // the lane must go to the next lord who can actually sail it.
+
+        [Fact]
+        public void RankPatrolAddressees_ArmyLeader_IsNeverRanked_EvenAsTheBestDefender()
+        {
+            var isAggressive = new[] { false, false, true };
+            var score = new[] { 9f, 1f, 5f };
+            var leadsArmy = new[] { true, false, false };
+
+            var ranked = NavalPatrolPlanner.RankPatrolAddressees(isAggressive, score, leadsArmy);
+
+            Assert.Equal(new[] { 1, 2 }, ranked);
+        }
+
+        [Fact]
+        public void RankPatrolAddressees_OnlyArmyLeaders_ReturnsEmpty()
+        {
+            var isAggressive = new[] { false, true };
+            var score = new[] { 3f, 4f };
+            var leadsArmy = new[] { true, true };
+
+            var ranked = NavalPatrolPlanner.RankPatrolAddressees(isAggressive, score, leadsArmy);
+
+            Assert.Empty(ranked);
+        }
+
+        [Fact]
+        public void RankPatrolAddressees_NoArmyLeaders_MatchesTheUnfilteredRanking()
+        {
+            var isAggressive = new[] { true, false, true, false };
+            var score = new[] { 100f, 1f, 50f, 90f };
+            var leadsArmy = new[] { false, false, false, false };
+
+            var ranked = NavalPatrolPlanner.RankPatrolAddressees(isAggressive, score, leadsArmy);
+
+            Assert.Equal(NavalPatrolPlanner.RankPatrolAddressees(isAggressive, score), ranked);
+        }
     }
 }

@@ -505,9 +505,14 @@ namespace CoherentWarAI.Behaviors
             int candidateCount = navalCandidates.Count;
             bool[] isAggressive = new bool[candidateCount];
             float[] scores = new float[candidateCount];
+            bool[] leadsArmy = new bool[candidateCount];
             for (int i = 0; i < candidateCount; i++)
             {
                 MobileParty candidate = navalCandidates[i];
+                // Army leaders stay naval candidates - they may hold the Naval domain -
+                // but are never addressed: dispatch drops their patrol the next hour
+                // (NavalPatrolDispatch.DropLeadsArmy), which left the lane unmanned.
+                leadsArmy[i] = LeadsArmy(candidate);
                 // Two independent attacker signals: today's posture (only written when
                 // EnableDefensivePosture is on - vanilla never sets PartyObjective) and the
                 // realm's Offense holders. The second keeps this ranking meaningful when
@@ -523,7 +528,7 @@ namespace CoherentWarAI.Behaviors
             // defensive patrol lane (found in a live 2026-09-10 log). Defenders are
             // ranked ahead of attackers here; an attacker is used only when there are
             // not enough defending candidates left to fill every lane.
-            int[] rankedIndices = NavalPatrolPlanner.RankPatrolAddressees(isAggressive, scores);
+            int[] rankedIndices = NavalPatrolPlanner.RankPatrolAddressees(isAggressive, scores, leadsArmy);
             List<MobileParty> pool = new List<MobileParty>(candidateCount);
             for (int i = 0; i < rankedIndices.Length; i++)
             {
@@ -698,7 +703,7 @@ namespace CoherentWarAI.Behaviors
                         // Army leaders are dropped, never dispatched: vanilla's patrol action
                         // sets Army.ArmyType = Defender and Army.AiBehaviorObject on every
                         // call, which would rewrite what the army does each hour (D1/AC25a).
-                        LeadsArmy = party.Army != null && party.Army.LeaderParty == party,
+                        LeadsArmy = LeadsArmy(party),
                         HasPortAnchor = order.HasPortAnchor,
                         AnchorFound = anchor != null,
                         AnchorHasPort = anchor != null && anchor.HasPort,
@@ -749,6 +754,12 @@ namespace CoherentWarAI.Behaviors
                     _orders.Remove(key);
                 }
             }
+        }
+
+        /// <summary>Whether this party leads an army - the one condition under which a naval patrol is never addressed nor dispatched.</summary>
+        private static bool LeadsArmy(MobileParty party)
+        {
+            return party.Army != null && party.Army.LeaderParty == party;
         }
 
         /// <summary>Not tied down by a siege/battle, and either independent or leading its own army (SPEC SS5.2).</summary>
