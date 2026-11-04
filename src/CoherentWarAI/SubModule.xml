@@ -12,7 +12,7 @@
 		<DependedModule Id="Sandbox" DependentVersion="v1.4.8" Optional="false"/>
 		<DependedModule Id="StoryMode" DependentVersion="v1.4.8" Optional="false"/>
 		<DependedModule Id="Bannerlord.MBOptionScreen" Optional="false"/>
-		<DependedModule Id="NavalDLC" DependentVersion="v1.4.8" Optional="true"/>
+		<DependedModule Id="NavalDLC" DependentVersion="v1.2.8" Optional="true"/>
 	</DependedModules>
 	<SubModules>
 		<SubModule>
