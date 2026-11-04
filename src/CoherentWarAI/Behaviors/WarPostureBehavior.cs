@@ -81,6 +81,13 @@ namespace CoherentWarAI.Behaviors
             WarAiStats.FlushDaily();
             WarAiLog.Flush();
 
+            // The Offense holders this pass publishes replace yesterday's wholesale,
+            // whatever happens below: a realm skipped today, or a pass that does not
+            // run (posture and doctrine off, chain of command on), must not keep
+            // appointments from an earlier posture (T-0118). Cleared and republished
+            // within this one call, so no reader sees the empty set in between.
+            CommandBehavior.ClearOffenseHolders();
+
             // Marshal bookkeeping must not depend on the posture toggle: the army
             // model vetoes non-marshals, so an unappointed realm could never raise
             // an army again. Either feature keeps this running.
@@ -115,6 +122,8 @@ namespace CoherentWarAI.Behaviors
             CollectCandidates(kingdom, settings);
             if (_candidates.Count == 0)
             {
+                // No lord to post: the realm has no Offense holders today. Yesterday's
+                // are not carried over - OnDailyTick cleared them before this pass.
                 return;
             }
 

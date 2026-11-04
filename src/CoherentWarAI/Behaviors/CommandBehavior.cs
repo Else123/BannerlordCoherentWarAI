@@ -159,6 +159,22 @@ namespace CoherentWarAI.Behaviors
         }
 
         /// <summary>
+        /// Drops every realm's Offense holders. Called by <see cref="WarPostureBehavior"/>
+        /// at the start of each posture pass, before it republishes, so the set is never
+        /// older than the realm's current posture: a realm the pass skips (no candidates
+        /// today) or a configuration in which the pass does not run at all (posture and
+        /// doctrine both off) is left with no holders instead of yesterday's - or the
+        /// session start's - appointments (T-0118).
+        /// </summary>
+        public static void ClearOffenseHolders()
+        {
+            if (_offenseHolders.Count > 0)
+            {
+                _offenseHolders = new Dictionary<Kingdom, HashSet<Hero>>();
+            }
+        }
+
+        /// <summary>
         /// Clears the Offense holders a previous campaign in this process left in the
         /// static. Done here rather than in <see cref="OnSessionLaunched"/>: the set is
         /// written by <see cref="WarPostureBehavior"/>'s own session-launch listener,
@@ -229,6 +245,10 @@ namespace CoherentWarAI.Behaviors
             }
             WarAiLog.Write("Command", string.Format(
                 "Offense holders from session launch: {0} kingdom(s)", kingdomsWithHolders));
+            // Tells the comparer this build clears every holder set at the start of each
+            // posture tick (ClearOffenseHolders, T-0118): a kingdom without a posture block
+            // on a date holds no Offense that day. Older builds kept the previous set.
+            WarAiLog.Write("Command", "Offense holders cleared each posture tick");
             WarAiLog.Flush();
         }
 
@@ -344,10 +364,7 @@ namespace CoherentWarAI.Behaviors
             {
                 _ordersByParty = new Dictionary<DomainKey<MobileParty>, Order>();
             }
-            if (_offenseHolders.Count > 0)
-            {
-                _offenseHolders = new Dictionary<Kingdom, HashSet<Hero>>();
-            }
+            ClearOffenseHolders();
             if (_challengers.Count > 0)
             {
                 _challengers = new Dictionary<Kingdom, Dictionary<Domain, ChallengerStreak>>();

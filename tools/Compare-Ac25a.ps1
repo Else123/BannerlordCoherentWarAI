@@ -35,8 +35,10 @@
         of the army: the lord is in the kingdom's published Offense holder set or is its
         current Offense delegate. WarPostureBehavior replaces that holder set once per posture
         tick (daily tick, plus once at session launch) with the MARSHAL lines of the kingdom's
-        posture block; a kingdom without a block in a tick (no candidates) keeps its previous
-        set. "attacks" slots never count, neither do Defense or Naval.
+        posture block. A kingdom without a block in a tick (no candidates) holds no Offense
+        after it in builds that write "[Command] Offense holders cleared each posture tick"
+        (the clear marker, T-0118); older builds kept its previous set, and their logs are
+        still judged that way. "attacks" slots never count, neither do Defense or Naval.
         Session launch: the first "war posture" section of the mod log. Builds that do not write
         "[Command] Offense holders from session launch: <n> kingdom(s)" between it and the next
         war posture section (the launch marker) wipe the launch holder set right after it is
@@ -86,11 +88,14 @@
                          "delegates Offense" line dated on or before D, in the fallback on or
                          before C or the date of P) names him: the mod reclaims a delegation
                          without a log line, so a delegation can neither clear nor convict him;
-                       - his kingdom has no posture block on or before D (C);
+                       - his kingdom has no posture block on or before D (C), in a build
+                         without the clear marker;
           a violation otherwise: never held Offense, held it only after the governing posture,
                      lost it before it (for example replaced as delegate), or "unlinked" (no
                      mod-log entry at all; counted separately because a name mismatch between
-                     digest and mod log looks the same).
+                     digest and mod log looks the same). With the clear marker a kingdom without
+                     a block on D (C) holds no Offense, so its army is judged like that of a
+                     lord who is not MARSHAL - also when the kingdom has no block at all.
         Leaders are linked to the mod log by (kingdom name, hero name); a name shared by
         several hero ids within one kingdom and run cannot be linked and is reported as WARN
         instead of judged. Rulers (ruler01=1) are exempt - the army model lets them raise the
@@ -117,7 +122,8 @@
             order: of its last date line). WarAiLog stops writing for good after one failed
             flush, and a size-triggered flush can cut a section; a section counts as complete
             when another section header follows it. So a kingdom without a block on D falls
-            back to its earlier set only when the posture tick of D was fully logged.
+            back to its earlier set (or, with the clear marker, to no holders) only when the
+            posture tick of D was fully logged.
 
     coherentwarai.ac25a-armydays
         Army-days per run = sum over the daily snapshots of armies led by non-rulers (ruler
@@ -225,6 +231,9 @@ $kingdomHeaderPattern = '^\[Posture\] (.+): \d+ parties, '
 $postureNamePattern = '^\[Posture\]\s+(MARSHAL|attacks): (.+?) \(strength'
 # Written by builds whose CommandBehavior keeps the session-launch Offense holder set.
 $launchMarkerPattern = '^\[Command\] Offense holders from session launch: \d+ kingdom\(s\)$'
+# Written by builds whose WarPostureBehavior clears every Offense holder set at the start of each
+# posture tick (T-0118): there a kingdom without a block on a date holds no Offense that day.
+$clearMarkerPattern = '^\[Command\] Offense holders cleared each posture tick$'
 
 $warnings = New-Object System.Collections.ArrayList
 
@@ -348,6 +357,8 @@ function Read-Digest([string]$Path, [string]$RunName) {
 #                       section was not cut by a failed or partial flush)
 #   LaunchMarker        the "Offense holders from session launch" line follows the session-launch
 #                       posture section, before the next one: the build keeps the launch holder set
+#   ClearMarker         the "Offense holders cleared each posture tick" line occurs: the build
+#                       clears every holder set per posture tick, so no block on a date = no holders
 #   Blocks              kingdom -> its posture blocks in log order (Date, Launch, Marshals: the MARSHAL
 #                       names); each block is one posture tick's Offense holder set of that kingdom
 #   OffenseDelegations  kingdom -> "delegates Offense" lines in log order (Date, Name)
@@ -357,6 +368,7 @@ function Read-ModLog([string]$Path, [string]$RunName) {
     $postureDates = New-Object 'System.Collections.Generic.SortedSet[int]'
     $postureSections = New-Object System.Collections.ArrayList
     $launchMarker = $false
+    $clearMarker = $false
     $blocks = @{}
     $blockCount = 0
     $offenseDelegations = @{}
@@ -383,6 +395,7 @@ function Read-ModLog([string]$Path, [string]$RunName) {
             continue
         }
         if ($line -match $launchMarkerPattern -and $postureSections.Count -eq 1) { $launchMarker = $true }
+        if ($line -match $clearMarkerPattern) { $clearMarker = $true }
         $key = $null
         $role = $null
         $isOffense = $false
@@ -431,7 +444,7 @@ function Read-ModLog([string]$Path, [string]$RunName) {
         [void]$script:warnings.Add("$RunName`: CoherentWarAI.log has $($postureDates.Count) war posture section(s) but no parsable '[Posture] <kingdom>: <n> parties, ' block line; no MARSHAL line can clear anyone")
     }
     [PSCustomObject]@{
-        Held = $held; PostureDates = @($postureDates); PostureSections = @($postureSections); LaunchMarker = $launchMarker; Blocks = $blocks
+        Held = $held; PostureDates = @($postureDates); PostureSections = @($postureSections); LaunchMarker = $launchMarker; ClearMarker = $clearMarker; Blocks = $blocks
         OffenseDelegations = $offenseDelegations; OffenseDates = $offenseDates; Delegations = $delegations
     }
 }
@@ -455,6 +468,23 @@ function New-Judgement([string]$Outcome, [string]$Why) {
     [PSCustomObject]@{ Outcome = $Outcome; Why = $Why }
 }
 
+# A posture block without MARSHAL lines: the holder set of a kingdom that had no block in a posture
+# tick of a build with the clear marker.
+function New-EmptyBlock([int]$Date, [bool]$Launch) {
+    [PSCustomObject]@{ Date = $Date; Launch = $Launch; Marshals = New-Object 'System.Collections.Generic.HashSet[string]' }
+}
+
+# Build with the clear marker, no tick order: the holder set the posture tick before $Date left -
+# the kingdom's last earlier block if it is dated on the posture date right before $Date, else
+# none (no block in that tick, or no earlier posture at all).
+function Get-ClearedPreviousSet($ModLog, $Before, [int]$Date) {
+    $earlierDates = @($ModLog.PostureDates | Where-Object { $_ -lt $Date })
+    if ($earlierDates.Count -eq 0) { return New-EmptyBlock $Date $false }
+    $previousDate = $earlierDates[-1]
+    if ($Before.Count -gt 0 -and $Before[-1].Date -eq $previousDate) { return $Before[-1] }
+    New-EmptyBlock $previousDate $false
+}
+
 # Judges one army episode against the mod log; see the help for the rules. $Rule says which
 # posture block(s) can have governed it:
 #   Tick      the army came after the daily tick dated $Date: the kingdom's last daily block
@@ -463,6 +493,9 @@ function New-Judgement([string]$Outcome, [string]$Why) {
 #             session-launch block (G = P);
 #   Calendar  no tick order (fallback): G and P of calendar date $Date, as described in the help.
 # A session-launch block clears nobody unless the mod log has the launch marker (see the help).
+# With the clear marker a missing block is an empty holder set: no block on $Date makes G empty,
+# and without tick order P is the block of the posture date right before $Date, empty when the
+# kingdom has none there (Get-ClearedPreviousSet). Without it a missing block keeps the last set.
 # Read-Run has made sure that the posture section of $Date exists and is complete.
 function Get-EpisodeJudgement($ModLog, [string]$Kingdom, [string]$Name, [int]$Date, [bool]$Observed, [string]$Rule) {
     $key = $Kingdom + '|' + $Name
@@ -482,11 +515,18 @@ function Get-EpisodeJudgement($ModLog, [string]$Kingdom, [string]$Name, [int]$Da
         $onC = @($all | Where-Object { $_.Date -eq $Date })
         $before = @($all | Where-Object { $_.Date -lt $Date })
     }
-    if ($onC.Count -eq 0 -and $before.Count -eq 0) {
+    if ($onC.Count -eq 0 -and $ModLog.ClearMarker) {
+        # No block on $Date, build with the clear marker: the posture tick of $Date left the
+        # kingdom without holders.
+        $g = New-EmptyBlock $Date ($Rule -eq 'Launch')
+        $p = if ($Rule -eq 'Calendar') { Get-ClearedPreviousSet $ModLog $before $Date } else { $g }
+    }
+    elseif ($onC.Count -eq 0 -and $before.Count -eq 0) {
         return New-Judgement 'Ambiguous' "$Kingdom has no posture block on or before $dateText"
     }
-    if ($onC.Count -eq 0) {
-        # No block on $Date (no candidates in that tick): the mod kept the last earlier set.
+    elseif ($onC.Count -eq 0) {
+        # No block on $Date (no candidates in that tick), build without the clear marker: the
+        # mod kept the last earlier set.
         $g = $before[-1]
         $p = $g
     }
@@ -497,7 +537,10 @@ function Get-EpisodeJudgement($ModLog, [string]$Kingdom, [string]$Name, [int]$Da
     else {
         # G: the set in force at the end of the posture tick of C; P: the set in force before it.
         $g = $onC[-1]
-        $p = if ($onC.Count -gt 1) { $onC[-2] } elseif ($before.Count -gt 0) { $before[-1] } else { $g }
+        $p = if ($onC.Count -gt 1) { $onC[-2] }
+            elseif ($ModLog.ClearMarker) { Get-ClearedPreviousSet $ModLog $before $Date }
+            elseif ($before.Count -gt 0) { $before[-1] }
+            else { $g }
     }
     $gText = if ($g.Launch) { "the session-launch posture of $(Format-DateKey $g.Date)" } else { Format-DateKey $g.Date }
     $pText = if ($p -eq $g) { $gText } elseif ($p.Date -eq $g.Date) { "the earlier posture of $gText" } else { Format-DateKey $p.Date }

@@ -12,6 +12,7 @@ $script:prefix = 'scenario coherentwarai.ac25a-digest: ac25a v1'
 function Get-Calendar([int]$Day) { "Year 1084, Summer $($Day + 1)" }
 
 $script:launchMarker = '[Command] Offense holders from session launch: 1 kingdom(s)'
+$script:clearMarker = '[Command] Offense holders cleared each posture tick'
 $script:blockHeader ='[Posture] Northern Empire: 17 parties, 13 war(s), 0 % of realm threatened -> 6 may attack, 11 defend'
 
 # A war posture section for harness day $Day: the Northern Empire block (block line $Header) with
@@ -27,8 +28,9 @@ function Get-PostureSection([int]$Day, [string[]]$Except = @(), [string[]]$Extra
     [string[]]$lines
 }
 
-# A posture section for harness day $Day that has a block for another kingdom only (Northern
-# Empire had no candidates that tick, so the mod kept its previous Offense holder set).
+# A posture section for harness day $Day that has a block for another kingdom only: Northern Empire
+# had no candidates that tick. A build without the clear marker kept its previous Offense holder
+# set; a build with it (T-0118) left it without holders.
 function Get-ForeignPostureSection([int]$Day) {
     @("=== $(Get-Calendar $Day) - war posture ===", '[Posture] Khuzait: 18 parties, 11 war(s), 7 % of realm threatened -> 6 may attack, 12 defend',
         '[Posture]   MARSHAL: Monchug (strength 313, valor 0)')
@@ -61,12 +63,13 @@ function Copy-RealisticJob([switch]$StripCalendar, [switch]$StripDailyTicks) {
 # date line of its day, any other line at the end. harness.log orders the lines as the rig does:
 # per day d "DailyTick d done", the AfterTick[d] digest lines (prefix added; e.g. a created line
 # whose ctx.Day still lags), the date line of d, the created lines of d, the snapshot of d.
-# NoDailyTicks leaves out the DailyTick lines (a harness log without tick order).
+# NoDailyTicks leaves out the DailyTick lines (a harness log without tick order). ForeignLaunch
+# writes the session-launch section without a Northern Empire block.
 function New-Run {
     param([string]$Job, [int]$Index, [long]$Seed, [string]$Mode, [int]$ArmyDays, [string]$Status = 'Completed',
         [int]$Days = 3, [int]$StartDay = 0, [int]$DigestDays = -1, [string[]]$Leaders = @(), [string[]]$NoOffense = @(),
         [string[]]$ModLog = @(), [string[]]$Digest = @(), [string]$ResultJson = '', [string]$ScenarioStatus = 'Passed',
-        [hashtable]$AfterTick = @{}, [switch]$NoDailyTicks, [switch]$NoModLog, [switch]$NoLaunchMarker)
+        [hashtable]$AfterTick = @{}, [switch]$NoDailyTicks, [switch]$NoModLog, [switch]$NoLaunchMarker, [switch]$ForeignLaunch)
     $dir = Join-Path $Job "r$Index"
     New-Item -ItemType Directory -Path $dir | Out-Null
     $reached = $StartDay + 1
@@ -127,7 +130,8 @@ function New-Run {
     $fillers = New-Object System.Collections.Queue
     for ($d = $first; $d -lt $first + $Days; $d++) { if (-not $posted.Contains((Get-Calendar $d))) { $fillers.Enqueue($d) } }
     $mod = New-Object System.Collections.ArrayList
-    foreach ($line in (Get-PostureSection $StartDay $NoOffense)) { [void]$mod.Add($line) }
+    $launchSection = if ($ForeignLaunch) { Get-ForeignPostureSection $StartDay } else { Get-PostureSection $StartDay $NoOffense }
+    foreach ($line in $launchSection) { [void]$mod.Add($line) }
     if (-not $NoLaunchMarker) { [void]$mod.Add($script:launchMarker) }
     [void]$mod.Add("=== $(Get-Calendar $StartDay) - chain of command ===")
     [void]$mod.Add('[Command] Northern Empire delegates Naval to Lucon')
@@ -307,7 +311,8 @@ Describe 'Compare-Ac25a' {
 
     It 'fails a lord who lost his MARSHAL post before he raised his army' {
         # The daily tick of Summer 2 drops Lord 0: both his armies come after it (Summer 2 and, with
-        # no block on Summer 3, the kept Summer 2 set) and are violations.
+        # no block on Summer 3, the kept Summer 2 set of a build without the clear marker) and are
+        # violations.
         $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 1 = @{ ModLog = @(Get-PostureSection 1 @('Lord 0')); Digest = @("created day=2 kingdom=$($script:kingdom) leader=lord_0|Lord 0|0") } })
         $r.Invariant.verdict | Should Be 'Failed'
         @($r.Invariant.violations).Count | Should Be 2
@@ -354,14 +359,76 @@ Describe 'Compare-Ac25a' {
         $r.Invariant.cleared | Should Be $r.Invariant.episodes
     }
 
-    It 'uses the last earlier block of a kingdom that has no block on the day before the army' {
-        # Summer 2 has a posture section, but no Northern Empire block: the mod kept the Summer 1
-        # set, which lists Lord 1 like Summer 3 does.
+    It 'uses the last earlier block of a kingdom that has no block on the day before the army (build without the clear marker)' {
+        # Summer 2 has a posture section, but no Northern Empire block: an older build kept the
+        # Summer 1 set, which lists Lord 1 like Summer 3 does.
         $mod = @(Get-ForeignPostureSection 1) + @(Get-PostureSection 2)
         $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 1 = @{ ModLog = $mod } })
         $r.Invariant.verdict | Should Be 'Passed'
         $r.Invariant.ambiguous | Should Be 0
         $r.Invariant.cleared | Should Be $r.Invariant.episodes
+    }
+
+    It 'treats a kingdom without a block on the day before the army as holding no Offense (build with the clear marker)' {
+        # Same log as above plus the clear marker (T-0118); the launch marker is written by default.
+        # The Summer 2 tick and the filler Summer 4 tick have no Northern Empire block and leave the
+        # kingdom without holders: the 7 armies of day 1 and the 6 of day 3 are violations. The
+        # armies after the Summer 3 tick, whose block lists everyone, stay cleared.
+        $mod = @(Get-ForeignPostureSection 1) + @(Get-PostureSection 2) + @($script:clearMarker)
+        $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 1 = @{ ModLog = $mod } })
+        $r.Invariant.verdict | Should Be 'Failed'
+        $violations = @($r.Invariant.violations)
+        $violations.Count | Should Be 13
+        @($violations | Where-Object { $_ -match 'raised an army on day 1 \(Year 1084, Summer 2\); .*not MARSHAL on Year 1084, Summer 2\)$' }).Count | Should Be 7
+        @($violations | Where-Object { $_ -match 'raised an army on day 3 \(Year 1084, Summer 4\); .*not MARSHAL on Year 1084, Summer 4\)$' }).Count | Should Be 6
+        $r.Invariant.ambiguous | Should Be 0
+        $r.Invariant.cleared | Should Be ($r.Invariant.episodes - 13)
+    }
+
+    It 'reports a lord MARSHAL only on the posture date right before his army as ambiguous without tick order (clear marker)' {
+        # G = Summer 3 (block without Lord X), P = Summer 2, the posture date right before it (X).
+        $mod = @(Get-PostureSection 1 @() @('Lord X')) + @(Get-PostureSection 2) + @($script:clearMarker)
+        $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 1 = @{ NoDailyTicks = $true; ModLog = $mod; Digest = @("created day=2 kingdom=$($script:kingdom) leader=lord_x|Lord X|0 calendar=Year 1084, Summer 3") } })
+        @($r.Invariant.violations | Where-Object { $_ -match 'Lord X' }).Count | Should Be 0
+        $x = @($r.Invariant.ambiguousEpisodes | Where-Object { $_ -match 'Lord X' })
+        $x.Count | Should Be 1
+        $x[0] | Should Match 'Lord X \[lord_x\] raised an army on day 2 \(Year 1084, Summer 3\); ambiguous: MARSHAL on Year 1084, Summer 2 but not on Year 1084, Summer 3'
+    }
+
+    It 'convicts a lord whose last MARSHAL block lies further back than the posture date before his army without tick order (clear marker)' {
+        # G = Summer 4 (block without Lord X); Summer 3 has no Northern Empire block, so P is empty
+        # and the Summer 2 block that lists X no longer counts.
+        $mod = @(Get-PostureSection 1 @() @('Lord X')) + @(Get-ForeignPostureSection 2) + @(Get-PostureSection 3) + @($script:clearMarker)
+        $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 1 = @{ NoDailyTicks = $true; ModLog = $mod; Digest = @("created day=3 kingdom=$($script:kingdom) leader=lord_x|Lord X|0 calendar=Year 1084, Summer 4") } })
+        @($r.Invariant.ambiguousEpisodes | Where-Object { $_ -match 'Lord X' }).Count | Should Be 0
+        $x = @($r.Invariant.violations | Where-Object { $_ -match 'Lord X' })
+        $x.Count | Should Be 1
+        $x[0] | Should Match 'Lord X \[lord_x\] raised an army on day 3 \(Year 1084, Summer 4\); Offense lost before the army \(last Offense line Year 1084, Summer 2, MARSHAL neither on Year 1084, Summer 3 nor on Year 1084, Summer 4\)'
+    }
+
+    It 'takes P as empty when the posture date before the army has no block without tick order (clear marker)' {
+        # Lord X is MARSHAL on Summer 2 and Summer 4 (G); Summer 3 has no Northern Empire block, so
+        # P is empty: ambiguous. Without the marker P would be Summer 2 and the army cleared.
+        $mod = @(Get-PostureSection 1 @() @('Lord X')) + @(Get-ForeignPostureSection 2) + @(Get-PostureSection 3 @() @('Lord X'))
+        $digest = @("created day=3 kingdom=$($script:kingdom) leader=lord_x|Lord X|0 calendar=Year 1084, Summer 4")
+        $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 1 = @{ NoDailyTicks = $true; ModLog = ($mod + @($script:clearMarker)); Digest = $digest } })
+        $x = @($r.Invariant.ambiguousEpisodes | Where-Object { $_ -match 'Lord X' })
+        $x.Count | Should Be 1
+        $x[0] | Should Match 'Lord X \[lord_x\] raised an army on day 3 \(Year 1084, Summer 4\); ambiguous: MARSHAL on Year 1084, Summer 4 but not on Year 1084, Summer 3'
+        $old = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 1 = @{ NoDailyTicks = $true; ModLog = $mod; Digest = $digest } })
+        @($old.Invariant.ambiguousEpisodes | Where-Object { $_ -match 'Lord X' }).Count | Should Be 0
+        @($old.Invariant.violations | Where-Object { $_ -match 'Lord X' }).Count | Should Be 0
+    }
+
+    It 'convicts an army on the start date of a kingdom without a session-launch block (clear marker)' {
+        # Without the marker the same log is ambiguous ("no posture block on or before").
+        $digest = @("created day=0 kingdom=$($script:kingdom) leader=lord_0|Lord 0|0")
+        $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 1 = @{ ForeignLaunch = $true; ModLog = @($script:clearMarker); Digest = $digest } })
+        $x = @($r.Invariant.violations | Where-Object { $_ -match 'raised an army on day 0 ' })
+        $x.Count | Should Be 1
+        $x[0] | Should Match 'Lord 0 \[lord_0\] raised an army on day 0 '
+        $old = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 1 = @{ ForeignLaunch = $true; Digest = $digest } })
+        @($old.Invariant.ambiguousEpisodes | Where-Object { $_ -match 'raised an army on day 0 .*no posture block on or before' }).Count | Should Be 1
     }
 
     It 'judges an army created after a daily tick but before its date line by that tick' {
