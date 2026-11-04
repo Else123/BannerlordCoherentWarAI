@@ -32,6 +32,12 @@ namespace CoherentWarAI.Behaviors
         private static Dictionary<IFaction, IFaction> _primaryEnemies = new Dictionary<IFaction, IFaction>();
 
         /// <summary>
+        /// Set while the focus could not be chosen for want of anything to judge by,
+        /// so it is chosen on the first hour that has it rather than a day later.
+        /// </summary>
+        private bool _focusPending;
+
+        /// <summary>
         /// Whether this party is committed to something it cannot simply walk away
         /// from. Vanilla counts any nearby force as an available defender; a party
         /// holding a siege line or locked in a battle is not one.
@@ -51,7 +57,7 @@ namespace CoherentWarAI.Behaviors
 
         public override void RegisterEvents()
         {
-            CampaignEvents.HourlyTickEvent.AddNonSerializedListener(this, Recompute);
+            CampaignEvents.HourlyTickEvent.AddNonSerializedListener(this, OnHourlyTick);
             CampaignEvents.DailyTickEvent.AddNonSerializedListener(this, ChoosePrimaryEnemies);
             CampaignEvents.OnSessionLaunchedEvent.AddNonSerializedListener(this, OnSessionLaunched);
         }
@@ -80,12 +86,27 @@ namespace CoherentWarAI.Behaviors
             CoherentWarAISettings settings = CoherentWarAISettings.Current;
             if (settings == null || !settings.EnableEnemyFocus)
             {
+                _focusPending = false;
                 if (_primaryEnemies.Count > 0)
                 {
                     _primaryEnemies = new Dictionary<IFaction, IFaction>();
                 }
                 return;
             }
+
+            // A new campaign launches before its lords have taken the field: every
+            // enemy then reads strength 0 with no shared border, and the fallback
+            // below would simply take whichever war happens to be listed first.
+            if (!AnyEnemyStrengthKnown())
+            {
+                _focusPending = true;
+                if (_primaryEnemies.Count > 0)
+                {
+                    _primaryEnemies = new Dictionary<IFaction, IFaction>();
+                }
+                return;
+            }
+            _focusPending = false;
 
             Dictionary<IFaction, IFaction> fresh = new Dictionary<IFaction, IFaction>();
 
@@ -150,6 +171,27 @@ namespace CoherentWarAI.Behaviors
             _primaryEnemies = fresh;
         }
 
+        /// <summary>Whether any realm's enemy has measurable strength yet - false until the lords are on the map.</summary>
+        private static bool AnyEnemyStrengthKnown()
+        {
+            foreach (Kingdom kingdom in Kingdom.All)
+            {
+                if (kingdom == null || kingdom.IsEliminated)
+                {
+                    continue;
+                }
+                for (int i = 0; i < kingdom.FactionsAtWarWith.Count; i++)
+                {
+                    IFaction enemy = kingdom.FactionsAtWarWith[i];
+                    if (enemy != null && enemy.CurrentTotalStrength > 0f)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         /// <summary>Fortifications of ours that directly adjoin theirs.</summary>
         private static int CountSharedBorders(IFaction ours, IFaction theirs)
         {
@@ -182,6 +224,17 @@ namespace CoherentWarAI.Behaviors
         {
             Recompute();
             ChoosePrimaryEnemies();
+        }
+
+        private void OnHourlyTick()
+        {
+            Recompute();
+            // Clan strength is refreshed hourly by vanilla (KingdomManager.HourlyTickClan),
+            // so a focus deferred at launch is settled within the campaign's first hours.
+            if (_focusPending)
+            {
+                ChoosePrimaryEnemies();
+            }
         }
 
         /// <summary>

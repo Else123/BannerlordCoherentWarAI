@@ -3,10 +3,12 @@ using CoherentWarAI.Diagnostics;
 using CoherentWarAI.Logic;
 using CoherentWarAI.Settings;
 using TaleWorlds.CampaignSystem;
+using TaleWorlds.CampaignSystem.ComponentInterfaces;
 using TaleWorlds.CampaignSystem.GameComponents;
 using TaleWorlds.CampaignSystem.Map;
 using TaleWorlds.CampaignSystem.Party;
 using TaleWorlds.CampaignSystem.Settlements;
+using TaleWorlds.Core;
 
 namespace CoherentWarAI.Models
 {
@@ -20,13 +22,20 @@ namespace CoherentWarAI.Models
     /// Only offensive missions (siege/raid) are adjusted; defensive scoring is left
     /// to vanilla.
     /// </summary>
-    public class CoherentTargetScoreModel : DefaultTargetScoreCalculatingModel
+    public class CoherentTargetScoreModel : TargetScoreCalculatingModel
     {
         private readonly CommitmentStore _commitments = new CommitmentStore();
 
+        // BaseModel is the previously registered model of this type (NavalDLC's when the DLC is
+        // loaded after us in the chain, vanilla's Default* otherwise). It is a protected member
+        // inherited via MBGameModel<T>, so it must be accessed unqualified (CS1540 otherwise).
+        private TargetScoreCalculatingModel Base => BaseModel;
+
+        public string BaseModelName => Base?.GetType().Name;
+
         public override float GetTargetScoreForFaction(Settlement targetSettlement, Army.ArmyTypes missionType, MobileParty mobileParty, float ourStrength)
         {
-            float baseScore = base.GetTargetScoreForFaction(targetSettlement, missionType, mobileParty, ourStrength);
+            float baseScore = Base.GetTargetScoreForFaction(targetSettlement, missionType, mobileParty, ourStrength);
 
             CoherentWarAISettings settings = CoherentWarAISettings.Current;
             if (settings == null)
@@ -391,7 +400,7 @@ namespace CoherentWarAI.Models
         /// </summary>
         public override float CalculateDefensivePatrollingScoreForSettlement(Settlement settlement, bool isTargetingPort, MobileParty mobileParty)
         {
-            float baseScore = base.CalculateDefensivePatrollingScoreForSettlement(settlement, isTargetingPort, mobileParty);
+            float baseScore = Base.CalculateDefensivePatrollingScoreForSettlement(settlement, isTargetingPort, mobileParty);
 
             CoherentWarAISettings settings = CoherentWarAISettings.Current;
             if (baseScore <= 0f || settings == null || !settings.EnableGatewayDefense)
@@ -607,5 +616,16 @@ namespace CoherentWarAI.Models
                 }
             }
         }
+
+        // Forwarded to the previously registered model - no behaviour of our own.
+        public override float TravelingToAssignmentFactor => Base.TravelingToAssignmentFactor;
+        public override float BesiegingFactor => Base.BesiegingFactor;
+        public override float AssaultingTownFactor => Base.AssaultingTownFactor;
+        public override float RaidingFactor => Base.RaidingFactor;
+        public override float DefendingFactor => Base.DefendingFactor;
+        public override float GetDefensivePatrollingFactor(bool isNavalPatrolling) => Base.GetDefensivePatrollingFactor(isNavalPatrolling);
+        public override float GetOffensivePatrollingFactor(bool isNavalPatrolling) => Base.GetOffensivePatrollingFactor(isNavalPatrolling);
+        public override float CalculateOffensivePatrollingScoreForSettlement(Settlement settlement, bool isTargetingPort, MobileParty mobileParty) => Base.CalculateOffensivePatrollingScoreForSettlement(settlement, isTargetingPort, mobileParty);
+        public override float CurrentObjectiveValue(MobileParty mobileParty) => Base.CurrentObjectiveValue(mobileParty);
     }
 }

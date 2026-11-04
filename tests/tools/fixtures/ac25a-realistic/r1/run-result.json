@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "status": "Completed",
+  "reason": "",
+  "seed": 1,
+  "mode": "WarSails",
+  "daysRequested": 3,
+  "daysReached": 3,
+  "realSeconds": 28,
+  "scenarios": [
+    {
+      "id": "coherentwarai.ac25a-digest",
+      "status": "Passed",
+      "seconds": 9
+    }
+  ]
+}

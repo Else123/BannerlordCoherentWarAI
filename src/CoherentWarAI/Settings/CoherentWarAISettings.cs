@@ -114,6 +114,23 @@ namespace CoherentWarAI.Settings
         public int MaxMarshals = MarshalPlanner.DefaultMaxMarshals;
         public float RulerBonus = MarshalPlanner.DefaultRulerBonus;
 
+        // Chain of command - durable, competence-scored domain holders and the
+        // first naval order (Slice 1). Off leaves today's one-day marshal and
+        // gives every AI kingdom's fleet no coordination at all.
+        public bool EnableChainOfCommand = true;
+
+        /// <summary>Naval orders specifically; off means no NavalPatrol directives are generated.</summary>
+        public bool EnableNavalOrders = true;
+
+        /// <summary>How much Leadership/Tactics competence weighs into who becomes a domain holder.</summary>
+        public float MarshalCommandWeight = MarshalPlanner.DefaultCommandWeight;
+
+        /// <summary>How long a domain holder keeps the post before re-selection.</summary>
+        public int MarshalTermDays = 7;
+
+        /// <summary>Upper bound on simultaneous naval patrol lanes per realm.</summary>
+        public int MaxNavalPatrolsPerRealm = 2;
+
         // Coordination between a realm's own lords.
         public bool EnableCoordination = true;
         public float RequiredMargin = ClaimPlanner.DefaultRequiredMargin;

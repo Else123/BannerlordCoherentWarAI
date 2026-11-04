@@ -1,0 +1,38 @@
+0.0 Start: seed=1 days=3 mode=WarSails
+39.2 Phase Map -> Running (action KeepRunning, status Running, reason -)
+39.2 Heartbeat: day=0 timeControl=Stop timeLock=False inquiryActive=False playerInMapEvent=False
+39.2 scenario coherentwarai.ac25a-digest: started
+39.2 scenario coherentwarai.ac25a-digest: check 'setup.campaign' passed (expected Campaign.Current != null, actual ok)
+39.2 scenario coherentwarai.ac25a-digest: check 'setup.days-requested' passed (expected days > 0, actual 3)
+39.2 scenario coherentwarai.ac25a-digest: ac25a v1 date day=0 calendar=Year 1084, Summer 5
+39.2 Time: run (UnstoppableFastForward, speed 30)
+40.9 scenario coherentwarai.ac25a-digest: ac25a v1 created day=0 kingdom=battania|Battania leader=lord_5_1|Caladog|1 calendar=Year 1084, Summer 5
+42.7 HourlyTick 24 done (hours=2185880.57)
+42.8 DailyTick 1 done (hours=2185881.17)
+42.8 Heartbeat: day=1 timeControl=UnstoppableFastForward timeLock=False inquiryActive=False playerInMapEvent=False
+42.8 scenario coherentwarai.ac25a-digest: ac25a v1 date day=1 calendar=Year 1084, Summer 6
+42.8 scenario coherentwarai.ac25a-digest: ac25a v1 day=1 kingdom=battania|Battania armies=1 leaders=lord_5_1|Caladog|1
+42.8 scenario coherentwarai.ac25a-digest: ac25a v1 day=1 kingdom=aserai|Aserai armies=0 leaders=
+42.9 HourlyTick 25 done (hours=2185881.77)
+45.3 HourlyTick 48 done (hours=2185904.61)
+45.4 DailyTick 2 done (hours=2185905.09)
+45.4 scenario coherentwarai.ac25a-digest: ac25a v1 created day=1 kingdom=aserai|Aserai leader=lord_3_9|Tais|0 calendar=Year 1084, Summer 7
+45.5 Heartbeat: day=2 timeControl=UnstoppableFastForward timeLock=False inquiryActive=False playerInMapEvent=False
+45.5 scenario coherentwarai.ac25a-digest: ac25a v1 date day=2 calendar=Year 1084, Summer 7
+45.5 scenario coherentwarai.ac25a-digest: ac25a v1 day=2 kingdom=battania|Battania armies=1 leaders=lord_5_1|Caladog|1
+45.5 scenario coherentwarai.ac25a-digest: ac25a v1 day=2 kingdom=aserai|Aserai armies=1 leaders=lord_3_9|Tais|0
+45.6 HourlyTick 49 done (hours=2185905.69)
+46.1 scenario coherentwarai.ac25a-digest: ac25a v1 created day=2 kingdom=battania|Battania leader=lord_5_7|Brighan|0 calendar=Year 1084, Summer 7
+47.8 HourlyTick 72 done (hours=2185928.59)
+48.1 DailyTick 3 done (hours=2185929.01)
+48.1 Heartbeat: day=3 timeControl=UnstoppableFastForward timeLock=False inquiryActive=False playerInMapEvent=False
+48.1 scenario coherentwarai.ac25a-digest: ac25a v1 date day=3 calendar=Year 1084, Summer 8
+48.1 scenario coherentwarai.ac25a-digest: ac25a v1 day=3 kingdom=battania|Battania armies=2 leaders=lord_5_1|Caladog|1;lord_5_7|Brighan|0
+48.1 scenario coherentwarai.ac25a-digest: ac25a v1 day=3 kingdom=aserai|Aserai armies=3 leaders=lord_3_9|Tais|0;lord_3_4|Ruma|0;lord_3_12|Nuqar|0
+48.1 scenario coherentwarai.ac25a-digest: ac25a v1 created day=3 kingdom=aserai|Aserai leader=lord_3_4|Ruma|0 calendar=Year 1084, Summer 8
+48.1 scenario coherentwarai.ac25a-digest: digest done: 3 of 3 days aligned, 6 kingdom lines, 4 created events, 0 skipped (no kingdom or leader), 0 errors
+48.1 scenario coherentwarai.ac25a-digest: check 'digest.days-aligned' passed (expected every step one day later: days 1..3, actual 3 days aligned)
+48.1 scenario coherentwarai.ac25a-digest: check 'digest.kingdoms' passed (expected at least one kingdom line, actual 6 kingdom lines)
+48.1 scenario coherentwarai.ac25a-digest: check 'digest.created-errors' passed (expected no error in the ArmyCreated listener, actual 0 errors)
+48.1 scenario coherentwarai.ac25a-digest: Passed after 9 s
+48.1 Phase Running -> Ending (action RequestEndGame, status Completed, reason -)

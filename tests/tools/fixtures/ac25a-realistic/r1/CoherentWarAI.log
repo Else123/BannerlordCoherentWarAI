@@ -1,0 +1,84 @@
+CoherentWarAI log - started 2026-11-03 18:04:12
+[Init] CoherentWarAI active. Target de-greed: True, defensive posture: True, hysteresis: True, garrisons: True, route analysis: True, coordination: True, marshal doctrine: True, chain of command: True
+[Init] Settings in effect. Target de-greed: True, defensive posture: True, hysteresis: True, garrisons: True, route analysis: True, coordination: True, marshal doctrine: True, enemy focus: True, holdability: False, chain of command: True, naval orders: True
+
+=== Year 1084, Summer 5 - war posture ===
+[Posture] Battania: 15 parties, 11 war(s), 15 % of realm threatened -> 4 may attack, 11 defend
+[Posture]   MARSHAL: Caladog (strength 321, valor 1)
+[Posture]   attacks: Brighan (strength 197, valor 0)
+[Posture]   attacks: Luichan (strength 195, valor 0)
+[Posture]   attacks: Maireas (strength 171, valor 0)
+[Posture] Aserai: 16 parties, 12 war(s), 65 % of realm threatened -> 2 may attack, 14 defend
+[Posture]   MARSHAL: Unqid (strength 340, valor -1)
+[Posture]   attacks: Ruma (strength 233, valor 0)
+[Focus] Battania concentrates on Western Empire (strength 5506, 7 shared borders) out of 11 wars
+[Focus] Aserai concentrates on Southern Empire (strength 6063, 10 shared borders) out of 12 wars
+
+[Command] Command chain: TargetScore->NavalTargetScoreCalculatingModel, Garrison->NavalDLCSettlementGarrisonModel, Army->NavalDLCArmyManagementCalculationModel
+
+=== Year 1084, Summer 5 - chain of command ===
+[Command] Battania delegates Naval to Caladog
+[Command] Battania delegates Defense to Caladog
+[Command] Battania delegates Offense to Caladog
+[Command] Caladog orders Nywin to patrol (378, 438) near Llanoc Hen
+[Command] Caladog orders Ergeon to patrol (311, 448) near Inveth
+[Command] Aserai delegates Naval to Unqid
+[Command] Aserai delegates Defense to Unqid
+[Command] Aserai delegates Offense to Unqid
+[Command] Unqid orders Nuqar to patrol (327, 234) near Tubilis
+[Command] Unqid orders Tais to patrol (398, 246) near Tasheba
+
+=== Year 1084, Summer 6 - gateways into each realm ===
+[Gateway] Qasira                   0.43    x2.72  Aserai
+[Gateway] Sanala                   0.41    x1.69  Aserai
+
+=== Year 1084, Summer 6 - what the weights did ===
+[Effect]   Battania typically fights at 3.66:1, so overkill is measured from there
+[Effect]   Aserai typically fights at 3.55:1, so overkill is measured from there
+
+=== Year 1084, Summer 6 - war posture ===
+[Posture] Battania: 15 parties, 11 war(s), 23 % of realm threatened -> 4 may attack, 11 defend
+[Posture]   MARSHAL: Brighan (strength 197, valor 0)
+[Posture]   attacks: Luichan (strength 187, valor 0)
+[Posture]   attacks: Maireas (strength 180, valor 0)
+[Posture]   attacks: Nywin (strength 168, valor 0)
+[Posture] Aserai: 16 parties, 12 war(s), 71 % of realm threatened -> 2 may attack, 14 defend
+[Posture]   MARSHAL: Unqid (strength 343, valor -1)
+[Posture]   attacks: Tais (strength 229, valor 0)
+
+=== Year 1084, Summer 6 - chain of command ===
+[Command] Battania delegates Offense to Brighan
+[Command] Caladog orders Ergeon to patrol (378, 438) near Llanoc Hen
+[Command] Caladog orders Beathag to patrol (311, 448) near Inveth
+[Command] Unqid orders Nuqar to patrol (759, 185) near Doqa
+[Command] Unqid orders Addas to patrol (327, 234) near Tubilis
+
+=== Year 1084, Summer 7 - war posture ===
+[Posture] Battania: 8 parties, 11 war(s), 38 % of realm threatened -> 2 may attack, 6 defend
+[Posture]   MARSHAL: Brighan (strength 205, valor 0)
+[Posture]   attacks: Maireas (strength 181, valor 0)
+[Posture] Aserai: 14 parties, 12 war(s), 76 % of realm threatened -> 1 may attack, 13 defend
+[Posture]   MARSHAL: Tais (strength 229, valor 0)
+
+=== Year 1084, Summer 7 - chain of command ===
+[Command] Battania delegates Naval to Brighan
+[Command] Battania delegates Defense to Brighan
+[Command] Brighan orders Luichan to patrol (378, 438) near Llanoc Hen
+[Command] Brighan orders Maireas to patrol (411, 578) near Car Banseth
+[Command] Aserai delegates Offense to Tais
+[Command] Unqid orders Unqid to patrol (577, 165) near Abghan
+[Command] Unqid orders Nuqar to patrol (744, 178) near Razih
+
+=== Year 1084, Summer 8 - war posture ===
+[Posture] Battania: 7 parties, 11 war(s), 15 % of realm threatened -> 2 may attack, 5 defend
+[Posture]   MARSHAL: Brighan (strength 219, valor 0)
+[Posture]   attacks: Maireas (strength 183, valor 0)
+[Posture] Aserai: 16 parties, 12 war(s), 82 % of realm threatened -> 1 may attack, 15 defend
+[Posture]   MARSHAL: Nuqar (strength 184, valor 1)
+
+=== Year 1084, Summer 8 - chain of command ===
+[Command] Brighan orders Corein to patrol (378, 438) near Llanoc Hen
+[Command] Brighan orders Ladogual to patrol (411, 578) near Car Banseth
+[Command] Aserai delegates Offense to Nuqar
+[Command] Unqid orders Unqid to patrol (759, 185) near Doqa
+[Command] Unqid orders Talas to patrol (376, 265) near Quyaz

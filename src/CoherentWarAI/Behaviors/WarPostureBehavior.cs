@@ -34,10 +34,23 @@ namespace CoherentWarAI.Behaviors
         /// <summary>
         /// Whether this lord currently leads one of his realm's offensives. Only
         /// marshals raise armies; the rest fall in behind one or hold their ground.
+        ///
+        /// Delegates to <see cref="CommandBehavior.IsMarshal(Hero)"/> when chain of
+        /// command is on, so a Naval domain holder counts too; falls back to today's
+        /// same-day HashSet when the feature is off (AC10).
         /// </summary>
         public static bool IsMarshal(MobileParty party)
         {
-            return party != null && _marshals.Contains(party);
+            if (party == null)
+            {
+                return false;
+            }
+            CoherentWarAISettings settings = CoherentWarAISettings.Current;
+            if (settings != null && settings.EnableChainOfCommand)
+            {
+                return CommandBehavior.IsMarshal(party.LeaderHero);
+            }
+            return _marshals.Contains(party);
         }
 
         public override void RegisterEvents()
@@ -145,6 +158,9 @@ namespace CoherentWarAI.Behaviors
                 if (settings.EnableDefensivePosture)
                 {
                     party.SetPartyObjective(ToPartyObjective(posture));
+                    // Feeds the contention counter (AC13 / SPEC SS11.4): a party
+                    // written by more than one subsystem the same day is a bug.
+                    WarAiStats.RecordPartyWrite(party, "Posture", WarAiStats.WriteChannel.Objective);
                 }
 
                 // Only the lords released to attack are named individually - listing
@@ -180,6 +196,9 @@ namespace CoherentWarAI.Behaviors
             attackers.Sort((a, b) => fitness[b].CompareTo(fitness[a]));
 
             int appointed = 0;
+            // Published into CommandBehavior when chain of command is on, so
+            // IsMarshal(Hero) covers today's offensive marshals too (SPEC step 16).
+            List<Hero> appointedHeroes = settings.EnableChainOfCommand ? new List<Hero>() : null;
             for (int i = 0; i < attackers.Count; i++)
             {
                 MobileParty party = attackers[i];
@@ -194,6 +213,7 @@ namespace CoherentWarAI.Behaviors
                 if (isMarshal)
                 {
                     _marshals.Add(party);
+                    appointedHeroes?.Add(party.LeaderHero);
                     appointed++;
                 }
 
@@ -204,6 +224,11 @@ namespace CoherentWarAI.Behaviors
                     party.Party.EstimatedStrength,
                     party.LeaderHero.GetTraitLevel(DefaultTraits.Valor),
                     party.LeaderHero.Clan == Clan.PlayerClan ? ", your clan" : string.Empty));
+            }
+
+            if (settings.EnableChainOfCommand)
+            {
+                CommandBehavior.PublishOffenseHolders(kingdom, appointedHeroes);
             }
         }
 
@@ -232,20 +257,7 @@ namespace CoherentWarAI.Behaviors
             foreach (WarPartyComponent component in kingdom.WarPartyComponents)
             {
                 MobileParty party = component?.MobileParty;
-                if (party == null || party == MobileParty.MainParty || !party.IsActive || party.Party == null)
-                {
-                    continue;
-                }
-                if (party.IsDisbanding || party.LeaderHero == null)
-                {
-                    continue;
-                }
-                // Army members follow the army leader; only the leader decides.
-                if (party.Army != null && party.Army.LeaderParty != party)
-                {
-                    continue;
-                }
-                if (party.LeaderHero.Clan == Clan.PlayerClan && !settings.ManagePlayerClanParties)
+                if (!IsEligibleCandidate(party, settings))
                 {
                     continue;
                 }
@@ -256,6 +268,35 @@ namespace CoherentWarAI.Behaviors
                     party.LeaderHero.GetTraitLevel(DefaultTraits.Valor),
                     settings.ValorWeight));
             }
+        }
+
+        /// <summary>
+        /// The candidate filter above, exposed so <see cref="CommandBehavior"/> can
+        /// widen the pool for domain holders (Naval, and eventually Defense) without
+        /// duplicating it - <c>AppointMarshals</c>' own pool stays the day's
+        /// aggressive bucket only, which is correct for Offense but not for other
+        /// domains (SPEC step 16 note).
+        /// </summary>
+        internal static bool IsEligibleCandidate(MobileParty party, CoherentWarAISettings settings)
+        {
+            if (party == null || party == MobileParty.MainParty || !party.IsActive || party.Party == null)
+            {
+                return false;
+            }
+            if (party.IsDisbanding || party.LeaderHero == null)
+            {
+                return false;
+            }
+            // Army members follow the army leader; only the leader decides.
+            if (party.Army != null && party.Army.LeaderParty != party)
+            {
+                return false;
+            }
+            if (party.LeaderHero.Clan == Clan.PlayerClan && !settings.ManagePlayerClanParties)
+            {
+                return false;
+            }
+            return true;
         }
 
         /// <summary>

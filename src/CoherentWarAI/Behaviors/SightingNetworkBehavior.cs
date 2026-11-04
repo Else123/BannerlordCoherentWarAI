@@ -30,6 +30,10 @@ namespace CoherentWarAI.Behaviors
         {
             public IFaction Observer;
             public IFaction Seen;
+
+            /// <summary>The force that was seen - an army's leader, or a lone party.</summary>
+            public MobileParty Party;
+
             public CampaignVec2 Where;
             public float EnemyStrength;
 
@@ -201,43 +205,54 @@ namespace CoherentWarAI.Behaviors
         /// </summary>
         private static void FormBeliefsAboutDistraction(CoherentWarAISettings settings)
         {
-            Dictionary<IFaction, Dictionary<IFaction, float>> fresh
-                = new Dictionary<IFaction, Dictionary<IFaction, float>>();
+            // Each force counts once, by the latest report about it: an army seen
+            // every hour by several lords is still one army, and word that it has
+            // since got free supersedes word that it was pinned down.
+            Dictionary<IFaction, Dictionary<IFaction, SightingTally<MobileParty>>> tallies
+                = new Dictionary<IFaction, Dictionary<IFaction, SightingTally<MobileParty>>>();
 
             foreach (Sighting sighting in Sightings)
             {
-                if (!sighting.WasTiedDown || sighting.Observer == null || sighting.Seen == null)
+                if (sighting.Observer == null || sighting.Seen == null)
                 {
                     continue;
                 }
                 // Stale reports say nothing about where an army is now.
-                if (SightingNetwork.Freshness(sighting.When.ElapsedHoursUntilNow,
-                        settings.SightingLifetimeHours) <= 0f)
+                float hours = sighting.When.ElapsedHoursUntilNow;
+                if (SightingNetwork.Freshness(hours, settings.SightingLifetimeHours) <= 0f)
                 {
                     continue;
                 }
 
-                if (!fresh.TryGetValue(sighting.Observer, out Dictionary<IFaction, float> beliefs))
+                if (!tallies.TryGetValue(sighting.Observer, out Dictionary<IFaction, SightingTally<MobileParty>> byEnemy))
                 {
-                    beliefs = new Dictionary<IFaction, float>();
-                    fresh[sighting.Observer] = beliefs;
+                    byEnemy = new Dictionary<IFaction, SightingTally<MobileParty>>();
+                    tallies[sighting.Observer] = byEnemy;
+                }
+                if (!byEnemy.TryGetValue(sighting.Seen, out SightingTally<MobileParty> tally))
+                {
+                    tally = new SightingTally<MobileParty>();
+                    byEnemy[sighting.Seen] = tally;
                 }
 
                 // Weighted by how good the scout was: a doubtful report of an army
                 // being pinned down is a weaker basis for staking a campaign on.
-                beliefs.TryGetValue(sighting.Seen, out float running);
-                beliefs[sighting.Seen] = running + sighting.EnemyStrength * sighting.Confidence;
+                float tiedDown = sighting.WasTiedDown ? sighting.EnemyStrength * sighting.Confidence : 0f;
+                tally.Offer(sighting.Party, hours, tiedDown);
             }
 
             // Convert the observed totals into shares of each enemy's known size.
-            foreach (KeyValuePair<IFaction, Dictionary<IFaction, float>> observer in fresh)
+            Dictionary<IFaction, Dictionary<IFaction, float>> fresh
+                = new Dictionary<IFaction, Dictionary<IFaction, float>>();
+            foreach (KeyValuePair<IFaction, Dictionary<IFaction, SightingTally<MobileParty>>> observer in tallies)
             {
-                List<IFaction> enemies = new List<IFaction>(observer.Value.Keys);
-                foreach (IFaction enemy in enemies)
+                Dictionary<IFaction, float> beliefs = new Dictionary<IFaction, float>();
+                foreach (KeyValuePair<IFaction, SightingTally<MobileParty>> enemy in observer.Value)
                 {
-                    observer.Value[enemy] = ForceCommitment.DistractionRatio(
-                        enemy.CurrentTotalStrength, observer.Value[enemy]);
+                    beliefs[enemy.Key] = ForceCommitment.DistractionRatio(
+                        enemy.Key.CurrentTotalStrength, enemy.Value.Total);
                 }
+                fresh[observer.Key] = beliefs;
             }
 
             _believedDistraction = fresh;
@@ -320,6 +335,12 @@ namespace CoherentWarAI.Behaviors
         {
             float baseRadius = distanceUnit * settings.SightingSpotRadiusFactor;
 
+            // One report per realm and force each hour. Every lord near an army sees
+            // it - all the more so lords riding together - and repeating the same
+            // report adds nothing but entries; the best scout's account is kept.
+            Dictionary<IFaction, Dictionary<MobileParty, Sighting>> thisHour
+                = new Dictionary<IFaction, Dictionary<MobileParty, Sighting>>();
+
             foreach (MobileParty observer in MobileParty.AllLordParties)
             {
                 if (observer == null || !observer.IsActive || observer.MapFaction == null)
@@ -369,16 +390,33 @@ namespace CoherentWarAI.Behaviors
                         continue;
                     }
 
-                    Sightings.Add(new Sighting
+                    if (!thisHour.TryGetValue(observer.MapFaction, out Dictionary<MobileParty, Sighting> seenThisHour))
+                    {
+                        seenThisHour = new Dictionary<MobileParty, Sighting>();
+                        thisHour[observer.MapFaction] = seenThisHour;
+                    }
+                    if (seenThisHour.TryGetValue(seen, out Sighting already))
+                    {
+                        if (confidence > already.Confidence)
+                        {
+                            already.Confidence = confidence;
+                        }
+                        continue;
+                    }
+
+                    Sighting sighting = new Sighting
                     {
                         Observer = observer.MapFaction,
                         Seen = seen.MapFaction,
+                        Party = seen,
                         Where = seen.Position,
                         EnemyStrength = strength,
                         WasTiedDown = WarCoordinatorBehavior.IsTiedDown(seen),
                         Confidence = confidence,
                         When = CampaignTime.Now
-                    });
+                    };
+                    seenThisHour[seen] = sighting;
+                    Sightings.Add(sighting);
                 }
             }
         }
@@ -399,6 +437,11 @@ namespace CoherentWarAI.Behaviors
 
             float reach = distanceUnit * settings.SightingReachFactor;
 
+            // Each force counts once per settlement, by the latest report about it
+            // that has reached there - older reports have travelled further, so which
+            // one that is differs from place to place.
+            SightingTally<MobileParty> tally = new SightingTally<MobileParty>();
+
             foreach (Settlement settlement in Settlement.All)
             {
                 if (settlement == null || !settlement.IsFortification || settlement.MapFaction == null)
@@ -406,7 +449,7 @@ namespace CoherentWarAI.Behaviors
                     continue;
                 }
 
-                float total = 0f;
+                tally.Clear();
                 for (int i = 0; i < Sightings.Count; i++)
                 {
                     Sighting sighting = Sightings[i];
@@ -425,11 +468,12 @@ namespace CoherentWarAI.Behaviors
                         continue;
                     }
 
-                    total += SightingNetwork.ThreatToPlace(
+                    tally.Offer(sighting.Party, hours, SightingNetwork.ThreatToPlace(
                         sighting.EnemyStrength, distance, reach, hours, settings.SightingLifetimeHours)
-                        * sighting.Confidence;
+                        * sighting.Confidence);
                 }
 
+                float total = tally.Total;
                 if (total > 0f)
                 {
                     fresh[settlement] = total;

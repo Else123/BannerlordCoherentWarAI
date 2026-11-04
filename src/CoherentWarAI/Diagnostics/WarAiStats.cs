@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using TaleWorlds.CampaignSystem;
+using TaleWorlds.CampaignSystem.Party;
 
 namespace CoherentWarAI.Diagnostics
 {
@@ -52,6 +53,103 @@ namespace CoherentWarAI.Diagnostics
         private static int _knowledgeJudged;
         private static int _knowledgeDamped;
         private static float _knowledgeSum;
+
+        /// <summary>
+        /// The field a write actually drives. Posture writes <c>PartyObjective</c>, while
+        /// Command/BanditHunt drive movement (<c>SetPartyAiAction.GetActionForPatrollingAroundSettlement</c> /
+        /// <c>SetMoveEngageParty</c>) - two different fields by design (SPEC SS5.2: posture
+        /// is the single writer of <c>PartyObjective</c>). The contention counter below
+        /// only flags two subsystems writing the *same* channel, not merely the same party.
+        /// </summary>
+        public enum WriteChannel
+        {
+            Objective,
+            Movement
+        }
+
+        /// <summary>
+        /// Which subsystems wrote to each party's channel today - the contention counter
+        /// (AC13 / SPEC SS11.4). Two coordinators writing the same channel of the same
+        /// party the same day is the failure mode chain of command exists to remove; this
+        /// is designed-in detection rather than hoping nobody notices lords twitching.
+        /// </summary>
+        private static readonly Dictionary<MobileParty, Dictionary<WriteChannel, HashSet<string>>> _partyWriters
+            = new Dictionary<MobileParty, Dictionary<WriteChannel, HashSet<string>>>();
+
+        private const int MaxContentionNamed = 5;
+
+        /// <summary>Records that <paramref name="subsystem"/> drove this party's <paramref name="channel"/> today.</summary>
+        public static void RecordPartyWrite(MobileParty party, string subsystem, WriteChannel channel)
+        {
+            if (party == null || string.IsNullOrEmpty(subsystem))
+            {
+                return;
+            }
+            if (!_partyWriters.TryGetValue(party, out Dictionary<WriteChannel, HashSet<string>> byChannel))
+            {
+                byChannel = new Dictionary<WriteChannel, HashSet<string>>();
+                _partyWriters[party] = byChannel;
+            }
+            if (!byChannel.TryGetValue(channel, out HashSet<string> writers))
+            {
+                writers = new HashSet<string>();
+                byChannel[channel] = writers;
+            }
+            writers.Add(subsystem);
+        }
+
+        /// <summary>
+        /// Drops today's pending per-party write records without logging them - for a
+        /// fresh campaign session, where statics that survived a previous campaign in the
+        /// same process must not leak into today's diagnostics.
+        /// </summary>
+        public static void ResetContention()
+        {
+            _partyWriters.Clear();
+        }
+
+        /// <summary>
+        /// Logs and clears today's contention, independent of whether any offensive scoring
+        /// happened. Always writes one line - also when the count is zero - because an absent
+        /// line would be indistinguishable from a counter that never ran, and the in-game
+        /// acceptance criteria (Slice 1 AC13, Slice 2a AC23) need a checkable "0".
+        /// </summary>
+        private static void FlushContention()
+        {
+            int trackedParties = _partyWriters.Count;
+            int contentions = 0;
+            List<string> named = new List<string>();
+            foreach (KeyValuePair<MobileParty, Dictionary<WriteChannel, HashSet<string>>> partyPair in _partyWriters)
+            {
+                foreach (KeyValuePair<WriteChannel, HashSet<string>> channelPair in partyPair.Value)
+                {
+                    if (channelPair.Value.Count <= 1)
+                    {
+                        continue;
+                    }
+                    contentions++;
+                    if (named.Count < MaxContentionNamed)
+                    {
+                        string who = partyPair.Key.LeaderHero != null ? partyPair.Key.LeaderHero.Name.ToString() : partyPair.Key.Name.ToString();
+                        named.Add(string.Format("{0} ({1}, {2})", who, string.Join("+", new List<string>(channelPair.Value).ToArray()), channelPair.Key));
+                    }
+                }
+            }
+            _partyWriters.Clear();
+
+            if (contentions > 0)
+            {
+                WarAiLog.Write("Contention", string.Format(
+                    "{0} part{1} written by more than one subsystem today: {2}",
+                    contentions, contentions == 1 ? "y" : "ies", string.Join(", ", named.ToArray())));
+            }
+            else
+            {
+                WarAiLog.Write("Contention", string.Format(
+                    "0 parties written by more than one subsystem today (tracked {0} part{1})",
+                    trackedParties, trackedParties == 1 ? "y" : "ies"));
+            }
+        }
 
         /// <summary>Records one offensive target evaluation and what each weight did to it.</summary>
         public static void RecordScore(float overkill, float front, float coord, float strategy, bool floored)
@@ -260,6 +358,11 @@ namespace CoherentWarAI.Diagnostics
         /// <summary>Writes the day's tally and starts a fresh one.</summary>
         public static void FlushDaily()
         {
+            // Independent of offensive scoring below: contention can happen on a day
+            // with zero attacks (e.g. an all-defensive realm), so it is not gated by
+            // the same "nothing to report" early return.
+            FlushContention();
+
             if (!WarAiLog.Enabled)
             {
                 Reset();
