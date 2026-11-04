@@ -37,8 +37,6 @@
     <Compile Include="..\..\src\CoherentWarAI\Logic\NavalPatrolPlanner.cs" Link="Logic\NavalPatrolPlanner.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\DelegationPlanner.cs" Link="Logic\DelegationPlanner.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\NavalPatrolDispatch.cs" Link="Logic\NavalPatrolDispatch.cs" />
-    <Compile Include="..\..\tools\TestHarness\Logic\HarnessRun.cs" Link="Logic\HarnessRun.cs" />
-    <Compile Include="..\..\tools\TestHarness\Logic\ExceptionLogBudget.cs" Link="Logic\ExceptionLogBudget.cs" />
   </ItemGroup>
 
 </Project>
