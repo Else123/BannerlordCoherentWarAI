@@ -410,7 +410,7 @@ namespace CoherentWarAI.Diagnostics
                 "idle defenders sent after bandits: {0}", _banditHunts));
 
             WarAiLog.Write("Effect", string.Format(
-                "enemy forces under report: {0}, settlements that have had word: {1}",
+                "sighting reports on file (one per observer, force and hour seen): {0}, settlements that have had word: {1}",
                 _activeSightings, _settlementsWarned));
 
             WarAiLog.Write("Effect", string.Format(

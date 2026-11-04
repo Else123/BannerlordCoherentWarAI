@@ -23,6 +23,9 @@ namespace CoherentWarAI.Logic
 
         private readonly Dictionary<TSource, Report> _latest = new Dictionary<TSource, Report>();
 
+        /// <summary>Per force, the age of the newest report that saw it inside another force.</summary>
+        private readonly Dictionary<TSource, float> _absorbedHoursAgo = new Dictionary<TSource, float>();
+
         /// <summary>
         /// Considers a report about <paramref name="source"/>. Kept only if it is newer
         /// than what is held, or from the same moment and worth more.
@@ -43,15 +46,37 @@ namespace CoherentWarAI.Logic
             _latest[source] = new Report { HoursAgo = hoursAgo, Value = value };
         }
 
-        /// <summary>Sum of the one report kept per force.</summary>
+        /// <summary>
+        /// Notes that <paramref name="member"/> was seen <paramref name="hoursAgo"/> as
+        /// part of another force (a party marching in an army), whose own report already
+        /// carries its strength. Any report about <paramref name="member"/> that is not
+        /// newer than that sighting is superseded and no longer counted; a later report
+        /// of it on its own - it has left the army - counts again. Order-independent:
+        /// may be called before or after the member's own reports are offered.
+        /// </summary>
+        public void Absorb(TSource member, float hoursAgo)
+        {
+            if (_absorbedHoursAgo.TryGetValue(member, out float held) && held <= hoursAgo)
+            {
+                return;
+            }
+            _absorbedHoursAgo[member] = hoursAgo;
+        }
+
+        /// <summary>Sum of the one report kept per force, leaving out forces last seen inside another.</summary>
         public float Total
         {
             get
             {
                 float total = 0f;
-                foreach (Report report in _latest.Values)
+                foreach (KeyValuePair<TSource, Report> entry in _latest)
                 {
-                    total += report.Value;
+                    if (_absorbedHoursAgo.TryGetValue(entry.Key, out float absorbedHoursAgo)
+                        && entry.Value.HoursAgo >= absorbedHoursAgo)
+                    {
+                        continue;
+                    }
+                    total += entry.Value.Value;
                 }
                 return total;
             }
@@ -60,6 +85,7 @@ namespace CoherentWarAI.Logic
         public void Clear()
         {
             _latest.Clear();
+            _absorbedHoursAgo.Clear();
         }
     }
 }

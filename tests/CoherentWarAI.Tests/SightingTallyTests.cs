@@ -92,5 +92,81 @@ namespace CoherentWarAI.Tests
         {
             Assert.Equal(0f, new SightingTally<string>().Total, 3);
         }
+
+        // ---- Absorb (T-0111, army joins) ----
+        // Defect: a party reported on its own and then seen inside an army kept its old
+        // solo report next to the army's (which already includes its strength) until the
+        // solo report expired, so the party was counted twice.
+
+        [Fact]
+        public void Absorb_SoloReportOlderThanTheArmyReport_IsNotCountedNextToTheArmy()
+        {
+            var tally = new SightingTally<string>();
+            tally.Offer("lord", 10f, 100f);
+            tally.Offer("army", 2f, 400f);
+            tally.Absorb("lord", 2f);
+
+            Assert.Equal(400f, tally.Total, 3);
+        }
+
+        [Fact]
+        public void Absorb_IsOrderIndependent_AbsorbBeforeTheSoloReportIsOffered()
+        {
+            var tally = new SightingTally<string>();
+            tally.Absorb("lord", 2f);
+            tally.Offer("army", 2f, 400f);
+            tally.Offer("lord", 10f, 100f);
+
+            Assert.Equal(400f, tally.Total, 3);
+        }
+
+        [Fact]
+        public void Absorb_SoloReportNewerThanTheArmyReport_CountsAgain()
+        {
+            // The lord left the army after it was last seen: the newer solo report is
+            // the latest word about him and stands.
+            var tally = new SightingTally<string>();
+            tally.Offer("army", 8f, 400f);
+            tally.Absorb("lord", 8f);
+            tally.Offer("lord", 1f, 100f);
+
+            Assert.Equal(500f, tally.Total, 3);
+        }
+
+        [Fact]
+        public void Absorb_KeepsTheNewestAbsorption_WhenAbsorbedSeveralTimes()
+        {
+            var tally = new SightingTally<string>();
+            tally.Offer("lord", 5f, 100f);
+            tally.Absorb("lord", 9f);
+            tally.Absorb("lord", 3f);
+            tally.Absorb("lord", 7f);
+
+            Assert.Equal(0f, tally.Total, 3);
+        }
+
+        [Fact]
+        public void Absorb_SoloReportFromTheSameHourAsTheArmyReport_IsSuperseded()
+        {
+            // Boundary: same age counts as superseded. The party cannot have been both
+            // alone and in the army at that moment; the army report carries its strength.
+            var tally = new SightingTally<string>();
+            tally.Offer("lord", 4f, 100f);
+            tally.Offer("army", 4f, 400f);
+            tally.Absorb("lord", 4f);
+
+            Assert.Equal(400f, tally.Total, 3);
+        }
+
+        [Fact]
+        public void Clear_ForgetsAbsorptions()
+        {
+            var tally = new SightingTally<string>();
+            tally.Absorb("lord", 1f);
+            tally.Clear();
+            tally.Offer("lord", 5f, 100f);
+
+            Assert.Equal(100f, tally.Total, 3);
+        }
     }
 }

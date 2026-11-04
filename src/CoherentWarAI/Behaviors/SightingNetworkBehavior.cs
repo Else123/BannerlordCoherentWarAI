@@ -44,6 +44,28 @@ namespace CoherentWarAI.Behaviors
             public float Confidence;
 
             public CampaignTime When;
+
+            /// <summary>
+            /// The other parties marching in <see cref="Party"/>'s army when it was seen,
+            /// or null for a lone party. Their strength is already in
+            /// <see cref="EnemyStrength"/>, so any older report of them on their own is
+            /// superseded (<see cref="SightingTally{TSource}.Absorb"/>).
+            /// </summary>
+            public List<MobileParty> Members;
+        }
+
+        /// <summary>Offers a sighting to a tally and supersedes older solo reports of the army's members.</summary>
+        private static void OfferTo(SightingTally<MobileParty> tally, Sighting sighting, float hoursAgo, float value)
+        {
+            tally.Offer(sighting.Party, hoursAgo, value);
+            if (sighting.Members == null)
+            {
+                return;
+            }
+            for (int i = 0; i < sighting.Members.Count; i++)
+            {
+                tally.Absorb(sighting.Members[i], hoursAgo);
+            }
         }
 
         /// <summary>
@@ -238,7 +260,7 @@ namespace CoherentWarAI.Behaviors
                 // Weighted by how good the scout was: a doubtful report of an army
                 // being pinned down is a weaker basis for staking a campaign on.
                 float tiedDown = sighting.WasTiedDown ? sighting.EnemyStrength * sighting.Confidence : 0f;
-                tally.Offer(sighting.Party, hours, tiedDown);
+                OfferTo(tally, sighting, hours, tiedDown);
             }
 
             // Convert the observed totals into shares of each enemy's known size.
@@ -413,12 +435,38 @@ namespace CoherentWarAI.Behaviors
                         EnemyStrength = strength,
                         WasTiedDown = WarCoordinatorBehavior.IsTiedDown(seen),
                         Confidence = confidence,
-                        When = CampaignTime.Now
+                        When = CampaignTime.Now,
+                        Members = ArmyMembersOf(seen)
                     };
                     seenThisHour[seen] = sighting;
                     Sightings.Add(sighting);
                 }
             }
+        }
+
+        /// <summary>
+        /// The parties already marching with the army <paramref name="leader"/> leads, or
+        /// null if he leads none. Only attached parties: <c>Army.EstimatedStrength</c>
+        /// counts the leader and his <c>AttachedParties</c>, not parties called to the
+        /// army that are still on their way (<c>Army.Parties</c> with
+        /// <c>AttachedTo == null</c>). Absorbing those would drop a report whose
+        /// strength the army report does not carry.
+        /// </summary>
+        private static List<MobileParty> ArmyMembersOf(MobileParty leader)
+        {
+            if (leader.Army == null || leader.Army.LeaderParty != leader)
+            {
+                return null;
+            }
+            List<MobileParty> members = new List<MobileParty>(leader.AttachedParties.Count);
+            foreach (MobileParty member in leader.AttachedParties)
+            {
+                if (member != null)
+                {
+                    members.Add(member);
+                }
+            }
+            return members;
         }
 
         /// <summary>
@@ -468,7 +516,7 @@ namespace CoherentWarAI.Behaviors
                         continue;
                     }
 
-                    tally.Offer(sighting.Party, hours, SightingNetwork.ThreatToPlace(
+                    OfferTo(tally, sighting, hours, SightingNetwork.ThreatToPlace(
                         sighting.EnemyStrength, distance, reach, hours, settings.SightingLifetimeHours)
                         * sighting.Confidence);
                 }
