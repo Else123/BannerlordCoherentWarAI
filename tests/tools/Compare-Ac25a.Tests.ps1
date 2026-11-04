@@ -851,6 +851,19 @@ Describe 'Compare-Ac25a' {
         $r.ArmyDays.mde | Should Be ([Math]::Round($mde, 4))
         $r.ArmyDays.mdePercent | Should Be ([Math]::Round(100 * $mde / ((18 + 22 + 33 + 27 + 14 + 11) / 6.0), 4))
         $r.ArmyDays.detail | Should Match 'MDE ~4\.5 army-days \(21 % of FO, t, df 6\)'
+        @($r.Doc.warnings | Where-Object { $_ -match '^armydays: MDE' }).Count | Should Be 0
+        $r.ArmyDays.detail | Should Not Match 'weak test'
+    }
+
+    It 'keeps Passed but warns when the MDE is above 50 % of the FeatureOff mean' {
+        # runs per seed are WS, FO, FO, WS: both arms average 10, every cell spreads 4..16
+        $r = Invoke-Comparer (New-Job @(@(4, 16, 4, 16), @(6, 14, 6, 14), @(5, 15, 5, 15)))
+        $r.Exit | Should Be 0
+        $r.ArmyDays.verdict | Should Be 'Passed'
+        ($r.ArmyDays.mdePercent -gt 50) | Should Be $true
+        @($r.Doc.warnings | Where-Object { $_ -match '^armydays: MDE ~\S+ army-days is \d+ % of FO \(above 50 %\); only large effects are detectable' }).Count | Should Be 1
+        $r.Output | Should Match 'WARN  armydays: MDE'
+        $r.ArmyDays.detail | Should Match ' - WARN weak test: MDE above 50 % of FO'
     }
 
     It 'gives the same numbers under a de-DE culture' {

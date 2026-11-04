@@ -131,7 +131,9 @@
         mode) and a minimum detectable effect MDE = (t(0.975, df) + t(0.80, df)) * SE(D)
         (alpha 0.05 two-sided, power 0.8, df = pooled within-cell degrees of freedom; above
         df 30 the normal approximation 1.960 + 0.842), in army-days and as % of the FeatureOff
-        mean (mdePercent). No tolerance is applied to the MDE; it is information only.
+        mean (mdePercent). The MDE never changes the verdict; a Passed verdict with an MDE
+        above 50 % of the FeatureOff mean adds a WARN line (only large effects are detectable)
+        and "WARN weak test" to its detail.
         Verdict, in this order: RigError when any run has a rig error; Inconclusive when a run
         is unusable, a planned run is missing or a seed lacks one arm; Inconclusive when the
         smallest p the realised design can produce (2 / assignments when every seed has as
@@ -194,6 +196,8 @@ Set-StrictMode -Version 2
 $ErrorActionPreference = 'Stop'
 
 $Alpha = 0.05
+# A Passed armydays verdict with an MDE above this share of the FeatureOff mean gets a WARN.
+$MdeWarnPercent = 50
 # Student t quantiles t(0.975, df) and t(0.80, df) for df 1..30 (two-sided alpha 0.05, power 0.8).
 $TQuantile975 = @(12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228, 2.201, 2.179, 2.160, 2.145, 2.131,
     2.120, 2.110, 2.101, 2.093, 2.086, 2.080, 2.074, 2.069, 2.064, 2.060, 2.056, 2.052, 2.048, 2.045, 2.042)
@@ -1050,7 +1054,15 @@ else {
     elseif ($armyStats.Total -eq 0) { $armyVerdict = 'Inconclusive'; $armyDetail += ' - no non-ruler army-days in any run' }
     elseif ($armyStats.FoMean -eq 0) { $armyVerdict = 'Inconclusive'; $armyDetail += ' - FeatureOff mean is 0, no reference level' }
     elseif ([double]::IsNaN($armyStats.Mde) -or $armyStats.S -eq 0) { $armyVerdict = 'Inconclusive'; $armyDetail += ' - MDE not computable (noise s is 0 or undefined)' }
-    else { $armyVerdict = 'Passed' }
+    else {
+        $armyVerdict = 'Passed'
+        if ($armyStats.MdePercent -gt $MdeWarnPercent) {
+            [void]$warnings.Add(('armydays: MDE ~{0} army-days is {1} of FO (above {2} %); only large effects are detectable, more seeds give a stronger test' -f
+                (Format-Number $armyStats.Mde), (Format-Percent $armyStats.Mde $armyStats.FoMean), $MdeWarnPercent))
+            # The rig shows only the detail of a job check, so the warning is repeated there.
+            $armyDetail += " - WARN weak test: MDE above $MdeWarnPercent % of FO"
+        }
+    }
 }
 $armyDetail += $planNote
 
