@@ -53,6 +53,9 @@ namespace CoherentWarAI.Behaviors
         private static Dictionary<DomainKey<Hero>, Order> _orders = new Dictionary<DomainKey<Hero>, Order>();
         private static Dictionary<DomainKey<MobileParty>, Order> _ordersByParty = new Dictionary<DomainKey<MobileParty>, Order>();
 
+        /// <summary>The party each order last wrote movement to, so its contention hold is released on exactly that party.</summary>
+        private static Dictionary<DomainKey<Hero>, MobileParty> _writtenParties = new Dictionary<DomainKey<Hero>, MobileParty>();
+
         /// <summary>Every single-flag <see cref="Domain"/> value, for iterating the domain-agnostic readers over the (owner, Domain)-keyed stores.</summary>
         private static readonly Domain[] AllDomainFlags = { Domain.Defense, Domain.Offense, Domain.Naval };
 
@@ -207,6 +210,7 @@ namespace CoherentWarAI.Behaviors
             _delegations = new Dictionary<Kingdom, DelegationTable>();
             _orders = new Dictionary<DomainKey<Hero>, Order>();
             _ordersByParty = new Dictionary<DomainKey<MobileParty>, Order>();
+            _writtenParties = new Dictionary<DomainKey<Hero>, MobileParty>();
             // _offenseHolders is deliberately not reset here - see the constructor.
             _challengers = new Dictionary<Kingdom, Dictionary<Domain, ChallengerStreak>>();
             // Statics survive a second campaign in the same process; the contention
@@ -358,6 +362,10 @@ namespace CoherentWarAI.Behaviors
             }
             if (_orders.Count > 0)
             {
+                foreach (KeyValuePair<DomainKey<Hero>, Order> pair in _orders)
+                {
+                    ReleaseCommandHold(pair.Key, pair.Value);
+                }
                 _orders = new Dictionary<DomainKey<Hero>, Order>();
             }
             if (_ordersByParty.Count > 0)
@@ -531,6 +539,7 @@ namespace CoherentWarAI.Behaviors
                 if (_orders.TryGetValue(clearKey, out Order existing) && existing.IsNaval && existing.Verb == OrderVerb.Patrol
                     && existing.Provenance != Provenance.Player)
                 {
+                    ReleaseCommandHold(clearKey, existing);
                     _orders.Remove(clearKey);
                 }
             }
@@ -709,6 +718,7 @@ namespace CoherentWarAI.Behaviors
             {
                 foreach (DomainKey<Hero> key in expired)
                 {
+                    ReleaseCommandHold(key, _orders[key]);
                     _orders.Remove(key);
                 }
             }
@@ -808,7 +818,7 @@ namespace CoherentWarAI.Behaviors
                     // this slice). 2b further qualifies this by verb once a second Naval
                     // generator exists ("Command:Naval:Defend") - not built here, since
                     // with exactly one verb the extra qualifier would be unreachable.
-                    WarAiStats.RecordPartyWrite(party, "Command:" + order.DomainScope, WarAiStats.WriteChannel.Movement);
+                    RecordCommandHold(pair.Key, party, order);
                 }
             }
 
@@ -816,8 +826,45 @@ namespace CoherentWarAI.Behaviors
             {
                 foreach (DomainKey<Hero> key in toRemove)
                 {
+                    ReleaseCommandHold(key, _orders[key]);
                     _orders.Remove(key);
                 }
+            }
+        }
+
+        /// <summary>The subsystem name Command's movement writes are recorded under for the contention counter.</summary>
+        private static string CommandWriterName(Order order)
+        {
+            return "Command:" + order.DomainScope;
+        }
+
+        /// <summary>
+        /// Records that the order under <paramref name="key"/> just drove <paramref name="party"/>,
+        /// remembering exactly that party so the release hits it even if the lord has since
+        /// moved to another party. If the order previously drove a different party, that hold
+        /// ends here.
+        /// </summary>
+        private static void RecordCommandHold(DomainKey<Hero> key, MobileParty party, Order order)
+        {
+            if (_writtenParties.TryGetValue(key, out MobileParty previous) && previous != party)
+            {
+                WarAiStats.ReleasePartyWrite(previous, CommandWriterName(order), WarAiStats.WriteChannel.Movement);
+            }
+            _writtenParties[key] = party;
+            WarAiStats.RecordPartyWrite(party, CommandWriterName(order), WarAiStats.WriteChannel.Movement);
+        }
+
+        /// <summary>
+        /// Ends Command's hold on the party the order actually wrote, once the order is
+        /// removed, so a subsystem taking the party afterwards reads as a handoff and not
+        /// contention (WarAiStats.ReleasePartyWrite). A no-op if the order never dispatched.
+        /// </summary>
+        private static void ReleaseCommandHold(DomainKey<Hero> key, Order order)
+        {
+            if (_writtenParties.TryGetValue(key, out MobileParty party))
+            {
+                WarAiStats.ReleasePartyWrite(party, CommandWriterName(order), WarAiStats.WriteChannel.Movement);
+                _writtenParties.Remove(key);
             }
         }
 

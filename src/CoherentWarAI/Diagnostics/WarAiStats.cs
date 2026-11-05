@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CoherentWarAI.Logic;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Party;
 
@@ -59,7 +60,7 @@ namespace CoherentWarAI.Diagnostics
         /// Command/BanditHunt drive movement (<c>SetPartyAiAction.GetActionForPatrollingAroundSettlement</c> /
         /// <c>SetMoveEngageParty</c>) - two different fields by design (SPEC SS5.2: posture
         /// is the single writer of <c>PartyObjective</c>). The contention counter below
-        /// only flags two subsystems writing the *same* channel, not merely the same party.
+        /// only flags two subsystems holding the *same* channel at once, not merely the same party.
         /// </summary>
         public enum WriteChannel
         {
@@ -68,34 +69,39 @@ namespace CoherentWarAI.Diagnostics
         }
 
         /// <summary>
-        /// Which subsystems wrote to each party's channel today - the contention counter
-        /// (AC13 / SPEC SS11.4). Two coordinators writing the same channel of the same
-        /// party the same day is the failure mode chain of command exists to remove; this
-        /// is designed-in detection rather than hoping nobody notices lords twitching.
+        /// Which subsystems hold each party's channel - the contention counter
+        /// (AC13 / SPEC SS11.4). Two coordinators holding the same channel of the same
+        /// party at the same time is the failure mode chain of command exists to remove;
+        /// this is designed-in detection rather than hoping nobody notices lords twitching.
+        /// A subsystem that releases its hold (order dropped or expired) before another
+        /// takes the party is a sequential handoff, not contention. Releasing subsystems:
+        /// Command (order dropped, expired, cleared or reset; released on the exact party it
+        /// wrote) and BanditHunt (hunt ended, quarry lost, or yielding to a Command directive).
+        /// Posture writes a different channel and never releases.
         /// </summary>
-        private static readonly Dictionary<MobileParty, Dictionary<WriteChannel, HashSet<string>>> _partyWriters
-            = new Dictionary<MobileParty, Dictionary<WriteChannel, HashSet<string>>>();
+        private static readonly WriteContentionLedger<MobileParty, WriteChannel> _partyWrites
+            = new WriteContentionLedger<MobileParty, WriteChannel>();
 
         private const int MaxContentionNamed = 5;
 
-        /// <summary>Records that <paramref name="subsystem"/> drove this party's <paramref name="channel"/> today.</summary>
+        /// <summary>
+        /// Records that <paramref name="subsystem"/> drives this party's <paramref name="channel"/>
+        /// and holds it until <see cref="ReleasePartyWrite"/>. Contention is another subsystem
+        /// writing while it is still held.
+        /// </summary>
         public static void RecordPartyWrite(MobileParty party, string subsystem, WriteChannel channel)
         {
-            if (party == null || string.IsNullOrEmpty(subsystem))
-            {
-                return;
-            }
-            if (!_partyWriters.TryGetValue(party, out Dictionary<WriteChannel, HashSet<string>> byChannel))
-            {
-                byChannel = new Dictionary<WriteChannel, HashSet<string>>();
-                _partyWriters[party] = byChannel;
-            }
-            if (!byChannel.TryGetValue(channel, out HashSet<string> writers))
-            {
-                writers = new HashSet<string>();
-                byChannel[channel] = writers;
-            }
-            writers.Add(subsystem);
+            _partyWrites.Write(party, channel, subsystem);
+        }
+
+        /// <summary>
+        /// Records that <paramref name="subsystem"/> stopped driving this party's
+        /// <paramref name="channel"/> (its order ended), so a later writer is a handoff and
+        /// not contention. No-op unless it currently holds the channel.
+        /// </summary>
+        public static void ReleasePartyWrite(MobileParty party, string subsystem, WriteChannel channel)
+        {
+            _partyWrites.Release(party, channel, subsystem);
         }
 
         /// <summary>
@@ -105,7 +111,7 @@ namespace CoherentWarAI.Diagnostics
         /// </summary>
         public static void ResetContention()
         {
-            _partyWriters.Clear();
+            _partyWrites.Clear();
         }
 
         /// <summary>
@@ -116,26 +122,20 @@ namespace CoherentWarAI.Diagnostics
         /// </summary>
         private static void FlushContention()
         {
-            int trackedParties = _partyWriters.Count;
-            int contentions = 0;
+            int trackedParties = _partyWrites.TrackedPartyCount;
+            List<WriteContention<MobileParty, WriteChannel>> clashes = _partyWrites.Contentions();
+            int contentions = clashes.Count;
             List<string> named = new List<string>();
-            foreach (KeyValuePair<MobileParty, Dictionary<WriteChannel, HashSet<string>>> partyPair in _partyWriters)
+            foreach (WriteContention<MobileParty, WriteChannel> clash in clashes)
             {
-                foreach (KeyValuePair<WriteChannel, HashSet<string>> channelPair in partyPair.Value)
+                if (named.Count >= MaxContentionNamed)
                 {
-                    if (channelPair.Value.Count <= 1)
-                    {
-                        continue;
-                    }
-                    contentions++;
-                    if (named.Count < MaxContentionNamed)
-                    {
-                        string who = partyPair.Key.LeaderHero != null ? partyPair.Key.LeaderHero.Name.ToString() : partyPair.Key.Name.ToString();
-                        named.Add(string.Format("{0} ({1}, {2})", who, string.Join("+", new List<string>(channelPair.Value).ToArray()), channelPair.Key));
-                    }
+                    break;
                 }
+                string who = clash.Party.LeaderHero != null ? clash.Party.LeaderHero.Name.ToString() : clash.Party.Name.ToString();
+                named.Add(string.Format("{0} ({1}, {2})", who, string.Join("+", new List<string>(clash.Writers).ToArray()), clash.Channel));
             }
-            _partyWriters.Clear();
+            _partyWrites.Clear();
 
             if (contentions > 0)
             {

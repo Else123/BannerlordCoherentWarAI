@@ -39,6 +39,7 @@
     <Compile Include="..\..\src\CoherentWarAI\Logic\DelegationPlanner.cs" Link="Logic\DelegationPlanner.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\NavalPatrolDispatch.cs" Link="Logic\NavalPatrolDispatch.cs" />
     <Compile Include="..\..\src\CoherentWarAI\Logic\FocusDeferral.cs" Link="Logic\FocusDeferral.cs" />
+    <Compile Include="..\..\src\CoherentWarAI\Logic\WriteContentionLedger.cs" Link="Logic\WriteContentionLedger.cs" />
   </ItemGroup>
 
 </Project>

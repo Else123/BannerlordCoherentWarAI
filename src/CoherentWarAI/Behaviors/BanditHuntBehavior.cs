@@ -28,6 +28,9 @@ namespace CoherentWarAI.Behaviors
     /// </summary>
     public class BanditHuntBehavior : CampaignBehaviorBase
     {
+        /// <summary>The subsystem name hunts are recorded under for the contention counter.</summary>
+        private const string HunterName = "BanditHunt";
+
         private readonly Dictionary<MobileParty, CampaignTime> _huntStarted = new Dictionary<MobileParty, CampaignTime>();
 
         public override void RegisterEvents()
@@ -102,6 +105,12 @@ namespace CoherentWarAI.Behaviors
                 MobileParty party = component?.MobileParty;
                 if (!IsEligibleHunter(party, settings))
                 {
+                    // Yielding to a Command directive ends our control of the party's
+                    // movement; the hunt entry stays so a later resume keeps its clock.
+                    if (party != null && _huntStarted.ContainsKey(party) && CommandBehavior.HasDirective(party))
+                    {
+                        ReleaseHunt(party);
+                    }
                     continue;
                 }
 
@@ -112,7 +121,7 @@ namespace CoherentWarAI.Behaviors
                 if (onHunt && !BanditHuntPlanner.HuntStillWorthPursuing(
                         started.ElapsedHoursUntilNow, settings.BanditHuntCommitmentHours))
                 {
-                    _huntStarted.Remove(party);
+                    EndHunt(party);
                     continue;
                 }
 
@@ -128,14 +137,14 @@ namespace CoherentWarAI.Behaviors
                 MobileParty quarry = FindQuarry(party, settings);
                 if (quarry == null)
                 {
-                    _huntStarted.Remove(party);
+                    EndHunt(party);
                     continue;
                 }
 
                 party.SetMoveEngageParty(quarry, party.NavigationCapability);
                 // Feeds the contention counter (AC13 / SPEC SS11.4): a party written
                 // by more than one subsystem the same day is a bug.
-                WarAiStats.RecordPartyWrite(party, "BanditHunt", WarAiStats.WriteChannel.Movement);
+                WarAiStats.RecordPartyWrite(party, HunterName, WarAiStats.WriteChannel.Movement);
                 if (!onHunt)
                 {
                     // Timestamp the chase, not each re-issue, so the give-up bound
@@ -176,8 +185,20 @@ namespace CoherentWarAI.Behaviors
             }
             foreach (MobileParty party in stale)
             {
-                _huntStarted.Remove(party);
+                EndHunt(party);
             }
+        }
+
+        /// <summary>Drops the hunt entry and ends our hold on the party's movement (contention counter).</summary>
+        private void EndHunt(MobileParty party)
+        {
+            _huntStarted.Remove(party);
+            ReleaseHunt(party);
+        }
+
+        private static void ReleaseHunt(MobileParty party)
+        {
+            WarAiStats.ReleasePartyWrite(party, HunterName, WarAiStats.WriteChannel.Movement);
         }
 
         /// <summary>

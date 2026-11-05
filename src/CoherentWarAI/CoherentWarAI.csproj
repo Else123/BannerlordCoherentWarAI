@@ -120,6 +120,7 @@
     <Compile Include="Logic\SightingTally.cs" />
     <Compile Include="Logic\StrategicPriority.cs" />
     <Compile Include="Logic\FocusDeferral.cs" />
+    <Compile Include="Logic\WriteContentionLedger.cs" />
     <Compile Include="Models\CoherentArmyManagementModel.cs" />
     <Compile Include="Diagnostics\WarAiLog.cs" />
     <Compile Include="Diagnostics\WarAiStats.cs" />
