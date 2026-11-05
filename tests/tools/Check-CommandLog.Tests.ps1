@@ -161,12 +161,13 @@ Describe 'Check-CommandLog -ResultPath' {
         (Get-Row $json 'AC20').verdict | Should Be 'FAIL'
     }
 
-    # AllOff = vanilla-like baseline: marshal doctrine, chain of command and naval orders off.
-    $aoSettings = '[Init] Settings in effect. Target de-greed: True, marshal doctrine: False, chain of command: False, naval orders: False'
-    function Get-AllOffLogLines {
+    # ChainOff = pre-chain-of-command baseline (AC25a, doctrine only): marshal doctrine on,
+    # chain of command and naval orders off.
+    $coSettings = '[Init] Settings in effect. Target de-greed: True, marshal doctrine: True, chain of command: False, naval orders: False'
+    function Get-ChainOffLogLines {
         @(
             '[Init] CoherentWarAI active. Target de-greed: True, marshal doctrine: True, chain of command: True'
-            $aoSettings
+            $coSettings
             $foChain
             '=== Year 1084, Summer 1 - war posture ==='
             '[Contention] 0 parties written by more than one subsystem today (tracked 0 parties)'
@@ -176,71 +177,71 @@ Describe 'Check-CommandLog -ResultPath' {
         )
     }
 
-    It 'passes AC10 for an AllOff log: doctrine, chain and naval orders off, no daily [Command] lines' {
-        $aoLog = New-FeatureOffLog 'ao-ok.log' (Get-AllOffLogLines)
-        $json = Join-Path $dir 'ao-ok.json'
-        Invoke-Checker $aoLog 'AllOff' $json | Should Be 0
+    It 'passes AC10 for a ChainOff log: doctrine on, chain and naval orders off, no daily [Command] lines' {
+        $coLog = New-FeatureOffLog 'co-ok.log' (Get-ChainOffLogLines)
+        $json = Join-Path $dir 'co-ok.json'
+        Invoke-Checker $coLog 'ChainOff' $json | Should Be 0
         $doc = Get-Content -LiteralPath $json -Raw | ConvertFrom-Json
-        $doc.mode | Should Be 'AllOff'
+        $doc.mode | Should Be 'ChainOff'
         @($doc.rows).Count | Should Be 8
         (Get-Row $json 'AC10').verdict | Should Be 'PASS'
     }
 
-    It 'reports the chain-/naval-dependent criteria as N/A for AllOff' {
-        $aoLog = New-FeatureOffLog 'ao-na.log' (Get-AllOffLogLines)
-        $json = Join-Path $dir 'ao-na.json'
-        $null = Invoke-Checker $aoLog 'AllOff' $json
+    It 'reports the chain-/naval-dependent criteria as N/A for ChainOff' {
+        $coLog = New-FeatureOffLog 'co-na.log' (Get-ChainOffLogLines)
+        $json = Join-Path $dir 'co-na.json'
+        $null = Invoke-Checker $coLog 'ChainOff' $json
         foreach ($ac in 'AC1/AC2', 'AC9', 'AC20', 'AC21', 'AC13/AC23') {
             (Get-Row $json $ac).verdict | Should Be 'N/A for mode'
         }
     }
 
-    It 'passes AC10 for AllOff on a startup line that does not print naval orders' {
-        $aoLog = New-FeatureOffLog 'ao-startup.log' @('[Init] CoherentWarAI active. Target de-greed: True, marshal doctrine: False, chain of command: False', '=== Year 1084, Summer 1 - war posture ===')
-        $json = Join-Path $dir 'ao-startup.json'
-        Invoke-Checker $aoLog 'AllOff' $json | Should Be 0
+    It 'passes AC10 for ChainOff on a startup line that does not print naval orders' {
+        $coLog = New-FeatureOffLog 'co-startup.log' @('[Init] CoherentWarAI active. Target de-greed: True, marshal doctrine: True, chain of command: False', '=== Year 1084, Summer 1 - war posture ===')
+        $json = Join-Path $dir 'co-startup.json'
+        Invoke-Checker $coLog 'ChainOff' $json | Should Be 0
         (Get-Row $json 'AC10').verdict | Should Be 'PASS'
     }
 
-    It 'fails AC10 for AllOff when a FeatureOff log (chain of command on) is checked' {
-        $aoLog = New-FeatureOffLog 'ao-chain-on.log' @('[Init] Settings in effect. Target de-greed: True, marshal doctrine: False, chain of command: True, naval orders: False', '=== Year 1084, Summer 1 - war posture ===')
-        $json = Join-Path $dir 'ao-chain-on.json'
-        Invoke-Checker $aoLog 'AllOff' $json | Should Be 1
+    It 'fails AC10 for ChainOff when the chain of command is on' {
+        $coLog = New-FeatureOffLog 'co-chain-on.log' @('[Init] Settings in effect. Target de-greed: True, marshal doctrine: True, chain of command: True, naval orders: False', '=== Year 1084, Summer 1 - war posture ===')
+        $json = Join-Path $dir 'co-chain-on.json'
+        Invoke-Checker $coLog 'ChainOff' $json | Should Be 1
         (Get-Row $json 'AC10').verdict | Should Be 'FAIL'
     }
 
-    It 'fails AC10 for AllOff when the init line says marshal doctrine: True' {
-        $aoLog = New-FeatureOffLog 'ao-doc-on.log' @('[Init] Settings in effect. Target de-greed: True, marshal doctrine: True, chain of command: False, naval orders: False', '=== Year 1084, Summer 1 - war posture ===')
-        $json = Join-Path $dir 'ao-doc-on.json'
-        Invoke-Checker $aoLog 'AllOff' $json | Should Be 1
+    It 'fails AC10 for ChainOff when the init line says marshal doctrine: False (doctrine must stay on)' {
+        $coLog = New-FeatureOffLog 'co-doc-off.log' @('[Init] Settings in effect. Target de-greed: True, marshal doctrine: False, chain of command: False, naval orders: False', '=== Year 1084, Summer 1 - war posture ===')
+        $json = Join-Path $dir 'co-doc-off.json'
+        Invoke-Checker $coLog 'ChainOff' $json | Should Be 1
         (Get-Row $json 'AC10').verdict | Should Be 'FAIL'
     }
 
-    It 'fails AC10 for AllOff when the "Settings in effect" line says naval orders: True' {
-        $aoLog = New-FeatureOffLog 'ao-naval-on.log' @('[Init] Settings in effect. Target de-greed: True, marshal doctrine: False, chain of command: False, naval orders: True', '=== Year 1084, Summer 1 - war posture ===')
-        $json = Join-Path $dir 'ao-naval-on.json'
-        Invoke-Checker $aoLog 'AllOff' $json | Should Be 1
+    It 'fails AC10 for ChainOff when the "Settings in effect" line says naval orders: True' {
+        $coLog = New-FeatureOffLog 'co-naval-on.log' @('[Init] Settings in effect. Target de-greed: True, marshal doctrine: True, chain of command: False, naval orders: True', '=== Year 1084, Summer 1 - war posture ===')
+        $json = Join-Path $dir 'co-naval-on.json'
+        Invoke-Checker $coLog 'ChainOff' $json | Should Be 1
         (Get-Row $json 'AC10').verdict | Should Be 'FAIL'
     }
 
-    It 'fails AC10 for AllOff when a daily [Command] delegation appears despite the chain being off' {
-        $aoLog = New-FeatureOffLog 'ao-daily.log' @($aoSettings, '=== Year 1084, Summer 1 - war posture ===', '[Command] Vlandia delegates Defense to Bern')
-        $json = Join-Path $dir 'ao-daily.json'
-        Invoke-Checker $aoLog 'AllOff' $json | Should Be 1
+    It 'fails AC10 for ChainOff when a daily [Command] delegation appears despite the chain being off' {
+        $coLog = New-FeatureOffLog 'co-daily.log' @($coSettings, '=== Year 1084, Summer 1 - war posture ===', '[Command] Vlandia delegates Defense to Bern')
+        $json = Join-Path $dir 'co-daily.json'
+        Invoke-Checker $coLog 'ChainOff' $json | Should Be 1
         (Get-Row $json 'AC10').verdict | Should Be 'FAIL'
     }
 
-    It 'fails AC10 for AllOff when a daily patrol order with hero ids appears' {
-        $aoLog = New-FeatureOffLog 'ao-order-ids.log' @($aoSettings, '=== Year 1084, Summer 1 - war posture ===', '[Command] Aldric [id=lord_1] orders Dorn [id=lord_2] to patrol (10, 20) near Ostican')
-        $json = Join-Path $dir 'ao-order-ids.json'
-        Invoke-Checker $aoLog 'AllOff' $json | Should Be 1
+    It 'fails AC10 for ChainOff when a daily patrol order with hero ids appears' {
+        $coLog = New-FeatureOffLog 'co-order-ids.log' @($coSettings, '=== Year 1084, Summer 1 - war posture ===', '[Command] Aldric [id=lord_1] orders Dorn [id=lord_2] to patrol (10, 20) near Ostican')
+        $json = Join-Path $dir 'co-order-ids.json'
+        Invoke-Checker $coLog 'ChainOff' $json | Should Be 1
         (Get-Row $json 'AC10').verdict | Should Be 'FAIL'
     }
 
-    It 'fails AC10 when an AllOff log is checked as FeatureOff (counter-check)' {
-        $aoLog = New-FeatureOffLog 'ao-as-fo.log' (Get-AllOffLogLines)
-        $json = Join-Path $dir 'ao-as-fo.json'
-        Invoke-Checker $aoLog 'FeatureOff' $json | Should Be 1
+    It 'fails AC10 when a ChainOff log is checked as FeatureOff (counter-check)' {
+        $coLog = New-FeatureOffLog 'co-as-fo.log' (Get-ChainOffLogLines)
+        $json = Join-Path $dir 'co-as-fo.json'
+        Invoke-Checker $coLog 'FeatureOff' $json | Should Be 1
         (Get-Row $json 'AC10').verdict | Should Be 'FAIL'
     }
 
@@ -279,7 +280,7 @@ Describe 'Check-CommandLog -ResultPath' {
     It 'still exits 0 and writes no file when -ResultPath is omitted' {
         $null = & powershell -NoProfile -File $script:checker -LogPath $log -Mode WarSails -MinDays 3
         $LASTEXITCODE | Should Be 0
-        @(Get-ChildItem -LiteralPath $dir -Filter '*.json' | Where-Object { $_.Name -notmatch '^(ws|ws-ac25a|ws-ids|fo|fo-[a-z0-9-]+|ao-[a-z0-9-]+)\.json$' }).Count | Should Be 0
+        @(Get-ChildItem -LiteralPath $dir -Filter '*.json' | Where-Object { $_.Name -notmatch '^(ws|ws-ac25a|ws-ids|fo|fo-[a-z0-9-]+|co-[a-z0-9-]+)\.json$' }).Count | Should Be 0
     }
 
     It 'exits 1 without writing JSON when the log is missing' {

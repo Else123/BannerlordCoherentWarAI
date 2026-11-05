@@ -191,15 +191,15 @@ function Add-HeroIds([string]$Job, [int]$Index) {
     [IO.File]::WriteAllLines($file, [string[]]$lines)
 }
 
-# Per-seed run layouts. The armydays arms: WS, AO, AO, WS (the default of New-Job). The CW1 job
-# since the AllOff baseline: WS, FO, AO, AO, FO, WS. A job from before it: WS, FO, FO, WS.
-$script:wsAoLayout = @('WarSails', 'AllOff', 'AllOff', 'WarSails')
-$script:cw1Layout = @('WarSails', 'FeatureOff', 'AllOff', 'AllOff', 'FeatureOff', 'WarSails')
+# Per-seed run layouts. The armydays arms: WS, CO, CO, WS (the default of New-Job). The CW1 job
+# since the ChainOff baseline: WS, FO, CO, CO, FO, WS. A job from before it: WS, FO, FO, WS.
+$script:wsCoLayout = @('WarSails', 'ChainOff', 'ChainOff', 'WarSails')
+$script:cw1Layout = @('WarSails', 'FeatureOff', 'ChainOff', 'ChainOff', 'FeatureOff', 'WarSails')
 $script:oldLayout = @('WarSails', 'FeatureOff', 'FeatureOff', 'WarSails')
 
 # One run per $Modes entry per seed. $Values[seed-1] holds the army-days in $Modes order (default
 # @(WS1, AO1, AO2, WS2)); 3 seeds by default.
-function New-Job([object[]]$Values, [double]$WsFactor = 1.0, [hashtable]$Overrides = @{}, [string[]]$Modes = $script:wsAoLayout) {
+function New-Job([object[]]$Values, [double]$WsFactor = 1.0, [hashtable]$Overrides = @{}, [string[]]$Modes = $script:wsCoLayout) {
     $job = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $job | Out-Null
     $modes = $Modes
@@ -218,7 +218,7 @@ function New-Job([object[]]$Values, [double]$WsFactor = 1.0, [hashtable]$Overrid
 }
 
 # Writes a job.json plan with runs r1..r$Count (modes as in New-Job) to $Path.
-function New-Manifest([string]$Path, [int]$Count, [string[]]$Modes = $script:wsAoLayout) {
+function New-Manifest([string]$Path, [int]$Count, [string[]]$Modes = $script:wsCoLayout) {
     $modes = $Modes
     $planned = @(1..$Count | ForEach-Object { [ordered]@{ runId = "r$_"; seed = [int][Math]::Ceiling($_ / $modes.Count); mode = $modes[($_ - 1) % $modes.Count] } })
     New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force | Out-Null
@@ -286,7 +286,7 @@ Describe 'Compare-Ac25a' {
         $r = Invoke-Comparer (New-Job $script:noisy)
         $r.Doc.runs[0].armyDays | Should Be 20
         $r.Doc.runs[0].rulerArmyDays | Should Be 1
-        $r.ArmyDays.aoMean | Should Be ([Math]::Round((18 + 22 + 33 + 27 + 14 + 11) / 6.0, 4))
+        $r.ArmyDays.coMean | Should Be ([Math]::Round((18 + 22 + 33 + 27 + 14 + 11) / 6.0, 4))
     }
 
     It 'fails the invariant for an injected Defense-only army leader' {
@@ -685,7 +685,7 @@ Describe 'Compare-Ac25a' {
         $r.Invariant.verdict | Should Be 'RigError'
     }
 
-    It 'gives RigError for a missing or empty harness.log of an AllOff run' {
+    It 'gives RigError for a missing or empty harness.log of a ChainOff run' {
         $job = New-Job $script:noisy
         Remove-Item (Join-Path $job 'r2\harness.log')
         [IO.File]::WriteAllText((Join-Path $job 'r3\harness.log'), '')
@@ -841,7 +841,7 @@ Describe 'Compare-Ac25a' {
         $r.Invariant.cleared | Should Be $r.Invariant.episodes
     }
 
-    It 'is Inconclusive when one AllOff run hung' {
+    It 'is Inconclusive when one ChainOff run hung' {
         $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 6 = @{ Status = 'Hung' } })
         $r.Exit | Should Be 3
         $r.ArmyDays.verdict | Should Be 'Inconclusive'
@@ -896,7 +896,7 @@ Describe 'Compare-Ac25a' {
     }
 
     It 'gives the exact p of a small known case, but no Passed on zero noise' {
-        # Only seed 1 differs (WS 20/20, AO 10/10); seeds 2 and 3 are constant. Of the 6 labellings
+        # Only seed 1 differs (WS 20/20, CO 10/10); seeds 2 and 3 are constant. Of the 6 labellings
         # of seed 1, two reach |diff| = 10 and four give 0; seeds 2/3 always give 0 -> p = 72/216 = 1/3.
         $r = Invoke-Comparer (New-Job @(@(20, 10, 10, 20), @(10, 10, 10, 10), @(10, 10, 10, 10)))
         $r.ArmyDays.p | Should Be ([Math]::Round(1 / 3, 4))
@@ -921,15 +921,15 @@ Describe 'Compare-Ac25a' {
         $r.Invariant.verdict | Should Be 'Inconclusive'
     }
 
-    It 'is Inconclusive, not Passed, when the AllOff mean is 0' {
+    It 'is Inconclusive, not Passed, when the ChainOff mean is 0' {
         $r = Invoke-Comparer (New-Job @(@(1, 0, 0, 0), @(0, 0, 0, 0), @(0, 0, 0, 0)))
         $r.ArmyDays.p | Should Be 1
         $r.ArmyDays.verdict | Should Be 'Inconclusive'
-        $r.ArmyDays.detail | Should Match 'AllOff mean is 0'
+        $r.ArmyDays.detail | Should Match 'ChainOff mean is 0'
     }
 
     It 'is Inconclusive when the design cannot reach alpha' {
-        # One seed, 2 WS + 2 AO: 6 labellings, the smallest p is 2/6 even for total separation.
+        # One seed, 2 WS + 2 CO: 6 labellings, the smallest p is 2/6 even for total separation.
         $r = Invoke-Comparer (New-Job @(, @(40, 10, 10, 40)))
         $r.Exit | Should Be 3
         $r.ArmyDays.verdict | Should Be 'Inconclusive'
@@ -1008,26 +1008,26 @@ Describe 'Compare-Ac25a' {
 
     It 'computes noise s as the pooled within-cell standard deviation and the MDE with t(df)' {
         $r = Invoke-Comparer (New-Job $script:noisy)
-        # cells (WS,AO) per seed: (20,21)(18,22)(30,31)(33,27)(12,13)(14,11); ss = 0.5+8+0.5+18+0.5+4.5 = 32, df 6
+        # cells (WS,CO) per seed: (20,21)(18,22)(30,31)(33,27)(12,13)(14,11); ss = 0.5+8+0.5+18+0.5+4.5 = 32, df 6
         $mde = (2.447 + 0.906) * [Math]::Sqrt(32 / 6) * [Math]::Sqrt(3) / 3
         $r.ArmyDays.s | Should Be ([Math]::Round([Math]::Sqrt(32 / 6), 4))
         $r.ArmyDays.df | Should Be 6
         $r.ArmyDays.mde | Should Be ([Math]::Round($mde, 4))
         $r.ArmyDays.mdePercent | Should Be ([Math]::Round(100 * $mde / ((18 + 22 + 33 + 27 + 14 + 11) / 6.0), 4))
-        $r.ArmyDays.detail | Should Match 'MDE ~4\.5 army-days \(21 % of AO, t, df 6\)'
+        $r.ArmyDays.detail | Should Match 'MDE ~4\.5 army-days \(21 % of CO, t, df 6\)'
         @($r.Doc.warnings | Where-Object { $_ -match '^armydays: MDE' }).Count | Should Be 0
         $r.ArmyDays.detail | Should Not Match 'weak test'
     }
 
-    It 'keeps Passed but warns when the MDE is above 50 % of the AllOff mean' {
-        # runs per seed are WS, AO, AO, WS: both arms average 10, every cell spreads 4..16
+    It 'keeps Passed but warns when the MDE is above 50 % of the ChainOff mean' {
+        # runs per seed are WS, CO, CO, WS: both arms average 10, every cell spreads 4..16
         $r = Invoke-Comparer (New-Job @(@(4, 16, 4, 16), @(6, 14, 6, 14), @(5, 15, 5, 15)))
         $r.Exit | Should Be 0
         $r.ArmyDays.verdict | Should Be 'Passed'
         ($r.ArmyDays.mdePercent -gt 50) | Should Be $true
-        @($r.Doc.warnings | Where-Object { $_ -match '^armydays: MDE ~\S+ army-days is \d+ % of AO \(above 50 %\); only large effects are detectable' }).Count | Should Be 1
+        @($r.Doc.warnings | Where-Object { $_ -match '^armydays: MDE ~\S+ army-days is \d+ % of CO \(above 50 %\); only large effects are detectable' }).Count | Should Be 1
         $r.Output | Should Match 'WARN  armydays: MDE'
-        $r.ArmyDays.detail | Should Match ' - WARN weak test: MDE above 50 % of AO'
+        $r.ArmyDays.detail | Should Match ' - WARN weak test: MDE above 50 % of CO'
     }
 
     It 'gives the same numbers under a de-DE culture' {
@@ -1099,45 +1099,45 @@ Describe 'Compare-Ac25a' {
         $r.ArmyDays.detail | Should Match 'job manifest .*missing'
     }
 
-    # CW1 layout per seed WS, FO, AO, AO, FO, WS: WS and AO as in $script:noisy, FO about three times higher.
+    # CW1 layout per seed WS, FO, CO, CO, FO, WS: WS and CO as in $script:noisy, FO about three times higher.
     $script:cw1Values = @(@(20, 60, 18, 22, 66, 21), @(30, 95, 33, 27, 90, 31), @(12, 40, 14, 11, 36, 13))
-    $script:cw1AllOffRuns = @{ 3 = @{ NoModLog = $true }; 4 = @{ NoModLog = $true }; 9 = @{ NoModLog = $true }; 10 = @{ NoModLog = $true }; 15 = @{ NoModLog = $true }; 16 = @{ NoModLog = $true } }
+    $script:cw1ChainOffRuns = @{ 3 = @{ NoModLog = $true }; 4 = @{ NoModLog = $true }; 9 = @{ NoModLog = $true }; 10 = @{ NoModLog = $true }; 15 = @{ NoModLog = $true }; 16 = @{ NoModLog = $true } }
 
-    It 'judges army-days WarSails vs AllOff in an 18-run CW1 job and reports the doctrine effect vs FeatureOff as info' {
-        $r = Invoke-Comparer (New-Job $script:cw1Values 1.0 $script:cw1AllOffRuns $script:cw1Layout)
+    It 'judges army-days WarSails vs ChainOff in an 18-run CW1 job and reports the doctrine effect vs FeatureOff as info' {
+        $r = Invoke-Comparer (New-Job $script:cw1Values 1.0 $script:cw1ChainOffRuns $script:cw1Layout)
         $r.Exit | Should Be 0
         @($r.Doc.runs).Count | Should Be 18
         @($r.Doc.runs | Where-Object { $_.valid }).Count | Should Be 18
         $r.ArmyDays.verdict | Should Be 'Passed'
         $r.ArmyDays.permutations | Should Be 216
-        $r.ArmyDays.aoMean | Should Be ([Math]::Round((18 + 22 + 33 + 27 + 14 + 11) / 6.0, 4))
+        $r.ArmyDays.coMean | Should Be ([Math]::Round((18 + 22 + 33 + 27 + 14 + 11) / 6.0, 4))
         $r.ArmyDays.s | Should Be ([Math]::Round([Math]::Sqrt(32 / 6), 4))
-        $r.ArmyDays.detail | Should Match '^D=\S+ army-days \(\S+ % of AO 20\.8\)'
+        $r.ArmyDays.detail | Should Match '^D=\S+ army-days \(\S+ % of CO 20\.8\)'
         # The doctrine effect is info only: perfectly separated, yet the verdict stays Passed.
         $r.ArmyDays.detail | Should Match '; doctrine effect vs FO: D=-?\d+\.\d army-days \(\S+ % of FO \d+\.\d\), p=0\.009 \(216 perms\)'
         $r.ArmyDays.doctrine.available | Should Be $true
         $r.ArmyDays.doctrine.p | Should Be ([Math]::Round(2 / 216, 4))
         $r.ArmyDays.doctrine.foMean | Should Be ([Math]::Round((60 + 66 + 95 + 90 + 40 + 36) / 6.0, 4))
         ($r.ArmyDays.doctrine.d -lt 0) | Should Be $true
-        $r.Doc.kingdoms[0].aoMean | Should Be ([Math]::Round((18 + 22 + 33 + 27 + 14 + 11) / 6.0, 4))
+        $r.Doc.kingdoms[0].coMean | Should Be ([Math]::Round((18 + 22 + 33 + 27 + 14 + 11) / 6.0, 4))
         $r.Doc.kingdoms[0].foMean | Should Be ([Math]::Round((60 + 66 + 95 + 90 + 40 + 36) / 6.0, 4))
-        # AllOff runs (no mod log needed) do not leak into the WarSails-only invariant.
+        # ChainOff runs (no mod log needed) do not leak into the WarSails-only invariant.
         $r.Invariant.verdict | Should Be 'Passed'
         $r.Invariant.episodes | Should Be (20 + 21 + 30 + 31 + 12 + 13)
     }
 
-    It 'is Inconclusive for a job without AllOff runs but still reports the doctrine effect' {
+    It 'is Inconclusive for a job without ChainOff runs but still reports the doctrine effect' {
         $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{} $script:oldLayout)
         $r.Exit | Should Be 3
         $r.ArmyDays.verdict | Should Be 'Inconclusive'
-        $r.ArmyDays.detail | Should Match '^no AllOff baseline runs'
+        $r.ArmyDays.detail | Should Match '^no ChainOff baseline runs'
         $r.ArmyDays.detail | Should Match '; doctrine effect vs FO: D=\S+ army-days .*p=\d\.\d{3} \(216 perms\)'
         $r.ArmyDays.doctrine.permutations | Should Be 216
         $r.Invariant.verdict | Should Be 'Passed'
         $r.Output | Should Match 'result: invariant Passed, armydays Inconclusive -> exit 3'
     }
 
-    It 'keeps the AllOff verdict when a FeatureOff run is unusable or missing, and drops only the doctrine info' {
+    It 'keeps the ChainOff verdict when a FeatureOff run is unusable or missing, and drops only the doctrine info' {
         # The hung r2 left a partial digest, including a kingdom no usable run has.
         $job = New-Job $script:cw1Values 1.0 @{ 2 = @{ Status = 'Hung'; Digest = @('day=1 kingdom=vlandia|Vlandia armies=1 leaders=lord_v|Lord V|0') } } $script:cw1Layout
         Remove-Item -Recurse (Join-Path $job 'r5')
@@ -1153,11 +1153,11 @@ Describe 'Compare-Ac25a' {
         $r.Doc.kingdoms[0].kingdomId | Should Be 'empire'
         $r.Doc.kingdoms[0].foMean | Should Be ([Math]::Round((95 + 90 + 40 + 36) / 4.0, 4))
         $r.Doc.kingdoms[0].rulerShareFo | Should Be ([Math]::Round(4 / (95 + 90 + 40 + 36 + 4.0), 4))
-        $r.Doc.kingdoms[0].rulerShareAo | Should Be ([Math]::Round(6 / (18 + 22 + 33 + 27 + 14 + 11 + 6.0), 4))
-        $r.Output | Should Match 'ruler share WS/AO/FO'
+        $r.Doc.kingdoms[0].rulerShareCo | Should Be ([Math]::Round(6 / (18 + 22 + 33 + 27 + 14 + 11 + 6.0), 4))
+        $r.Output | Should Match 'ruler share WS/CO/FO'
     }
 
-    It 'keeps the AllOff verdict when only a planned FeatureOff run is missing' {
+    It 'keeps the ChainOff verdict when only a planned FeatureOff run is missing' {
         $job = New-Job $script:cw1Values 1.0 @{} $script:cw1Layout
         Remove-Item -Recurse (Join-Path $job 'r5')
         New-Manifest (Join-Path $job 'job.json') 18 $script:cw1Layout
@@ -1168,7 +1168,7 @@ Describe 'Compare-Ac25a' {
         $r.ArmyDays.doctrine.available | Should Be $false
     }
 
-    It 'keeps the AllOff verdict when a seed has only FeatureOff runs' {
+    It 'keeps the ChainOff verdict when a seed has only FeatureOff runs' {
         $job = New-Job $script:cw1Values 1.0 @{} $script:cw1Layout
         New-Run -Job $job -Index 19 -Seed 4 -Mode 'FeatureOff' -ArmyDays 50
         $r = Invoke-Comparer $job
@@ -1178,7 +1178,7 @@ Describe 'Compare-Ac25a' {
         $r.ArmyDays.detail | Should Match '; doctrine effect vs FO: n/a \(seed\(s\) 4 lack a WarSails or a FeatureOff run\)'
     }
 
-    It 'makes army-days, not the invariant, Inconclusive when a planned AllOff run is missing' {
+    It 'makes army-days, not the invariant, Inconclusive when a planned ChainOff run is missing' {
         $job = New-Job $script:cw1Values 1.0 @{} $script:cw1Layout
         Remove-Item -Recurse (Join-Path $job 'r3')
         New-Manifest (Join-Path $job 'job.json') 18 $script:cw1Layout

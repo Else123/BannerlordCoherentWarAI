@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     CW-1: judges COMMAND-SLICE-2A.md AC25a (army composition) across a test rig job of
-    WarSails, FeatureOff and AllOff runs.
+    WarSails, FeatureOff and ChainOff runs.
 
 .DESCRIPTION
     Reads every run folder r<N> of a job folder:
@@ -135,30 +135,31 @@
             posture tick of D was fully logged.
 
     coherentwarai.ac25a-armydays
-        Modes: WarSails (everything on), FeatureOff (only the marshal doctrine off) and AllOff
-        (marshal doctrine, chain of command and naval orders off - the vanilla-like baseline).
+        Modes: WarSails (everything on), FeatureOff (only the marshal doctrine off) and ChainOff
+        (marshal doctrine on, chain of command and naval orders off - the pre-chain-of-command
+        baseline (AC25a, doctrine only); D1 demands zero net change against it).
         Army-days per run = sum over the daily snapshots of armies led by non-rulers (ruler
         armies are not constrained by the doctrine in either mode). D = seed-stratified mean
-        difference WarSails - AllOff (mean over seeds of the per-seed arm means).
-        Two-sided exact permutation test: WarSails/AllOff labels are re-assigned within
+        difference WarSails - ChainOff (mean over seeds of the per-seed arm means).
+        Two-sided exact permutation test: WarSails/ChainOff labels are re-assigned within
         each seed only (runs of one seed are exchangeable under "no effect", runs of
         different seeds are not), every assignment is enumerated, p = share with |D*| >= |D|.
         Being exact, the test is deterministic; no random seed exists.
         Reported alongside: noise s (pooled standard deviation of runs within one seed and
         mode) and a minimum detectable effect MDE = (t(0.975, df) + t(0.80, df)) * SE(D)
         (alpha 0.05 two-sided, power 0.8, df = pooled within-cell degrees of freedom; above
-        df 30 the normal approximation 1.960 + 0.842), in army-days and as % of the AllOff
+        df 30 the normal approximation 1.960 + 0.842), in army-days and as % of the ChainOff
         mean (mdePercent). The MDE never changes the verdict; a Passed verdict with an MDE
-        above 50 % of the AllOff mean adds a WARN line (only large effects are detectable)
+        above 50 % of the ChainOff mean adds a WARN line (only large effects are detectable)
         and "WARN weak test" to its detail.
         Verdict, in this order: RigError when any run has a rig error; Inconclusive when the
-        job has no AllOff run, planned or present ("no AllOff baseline runs": a job from before
-        that mode); Inconclusive when a WarSails, AllOff or unknown-mode run is unusable, such
-        a planned run is missing or a seed of the WarSails/AllOff runs lacks one of the two; Inconclusive when
+        job has no ChainOff run, planned or present ("no ChainOff baseline runs": a job from before
+        that mode); Inconclusive when a WarSails, ChainOff or unknown-mode run is unusable, such
+        a planned run is missing or a seed of the WarSails/ChainOff runs lacks one of the two; Inconclusive when
         the smallest p the realised design can produce (2 / assignments when every seed has as
-        many WarSails as AllOff runs, else 1 / assignments) is not below 0.05 ("design
+        many WarSails as ChainOff runs, else 1 / assignments) is not below 0.05 ("design
         cannot reach alpha"); Failed when p < 0.05; Inconclusive when the data cannot support
-        "no difference": no non-ruler army-days in any run, an AllOff mean of 0, or an MDE
+        "no difference": no non-ruler army-days in any run, a ChainOff mean of 0, or an MDE
         that is not computable (noise s is 0 or undefined); else Passed.
         Doctrine effect (info, never a verdict): the same statistic for WarSails - FeatureOff,
         appended to the detail ("; doctrine effect vs FO: D=..., p=...") and as the object
@@ -168,7 +169,7 @@
 
     A run is usable when run-result.json is readable with an integer seed and status
     Completed, its coherentwarai.ac25a-digest scenario entry is Passed, the mode is WarSails,
-    FeatureOff or AllOff, the digest has at most one line per (day, kingdom) and covers exactly
+    FeatureOff or ChainOff, the digest has at most one line per (day, kingdom) and covers exactly
     daysRequested consecutive days starting the day after its start date line (the scenario
     may start later than day 0, so the digest's own coverage is compared, not daysReached).
     A run has a rig error (missing or broken artifact) when run-result.json is missing, not
@@ -183,7 +184,7 @@
     in both details say so. A given or found plan that is missing or not readable is a rig
     error for both verdicts.
 
-    Per-kingdom rows (mean army-days of WarSails, AllOff and FeatureOff, the WarSails - AllOff
+    Per-kingdom rows (mean army-days of WarSails, ChainOff and FeatureOff, the WarSails - ChainOff
     difference and its s, ruler share of all army-days per arm) are info only, keyed by kingdom
     id, and use usable runs only.
 
@@ -221,10 +222,11 @@ Set-StrictMode -Version 2
 $ErrorActionPreference = 'Stop'
 
 $Alpha = 0.05
-# Run modes of a CW-1 job: WarSails (all on), FeatureOff (marshal doctrine off only) and AllOff
-# (doctrine, chain of command and naval orders off - the armydays baseline).
-$KnownModes = @('WarSails', 'FeatureOff', 'AllOff')
-# A Passed armydays verdict with an MDE above this share of the AllOff mean gets a WARN.
+# Run modes of a CW-1 job: WarSails (all on), FeatureOff (marshal doctrine off only) and ChainOff
+# (doctrine on, chain of command and naval orders off - the pre-chain-of-command baseline
+# (AC25a, doctrine only) the armydays verdict compares against).
+$KnownModes = @('WarSails', 'FeatureOff', 'ChainOff')
+# A Passed armydays verdict with an MDE above this share of the ChainOff mean gets a WARN.
 $MdeWarnPercent = 50
 # Student t quantiles t(0.975, df) and t(0.80, df) for df 1..30 (two-sided alpha 0.05, power 0.8).
 $TQuantile975 = @(12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228, 2.201, 2.179, 2.160, 2.145, 2.131,
@@ -1103,7 +1105,7 @@ foreach ($row in $ambiguousEpisodes) { [void]$warnings.Add($row) }
 
 $invariantDetail = "$($violations.Count) violations, $($ambiguousEpisodes.Count) ambiguous, $clearedEpisodes cleared ($($wsValid.Count) WarSails runs, $($judgedLeaders.Count) non-ruler leaders in $judgedEpisodes army episodes, $unobservedEpisodes with creation not observed, $($unlinked.Count) unlinked, $possibleViolators possible violators, $($rulersExempt.Count) rulers exempt)"
 # Planned WarSails runs, or runs planned without a mode: the invariant reads WarSails runs only.
-$missingWs = @($missingRuns | Where-Object { $expectedRuns[$_] -ne 'FeatureOff' -and $expectedRuns[$_] -ne 'AllOff' })
+$missingWs = @($missingRuns | Where-Object { $expectedRuns[$_] -ne 'FeatureOff' -and $expectedRuns[$_] -ne 'ChainOff' })
 $wsRigErrors = @($rigErrorRuns | Where-Object { $_.Mode -eq 'WarSails' -or $null -eq $_.Mode })
 if ($violations.Count -gt 0) { $invariantVerdict = 'Failed' }
 elseif ($plan.Error) { $invariantVerdict = 'RigError'; $invariantDetail += " - $($plan.Error)" }
@@ -1122,15 +1124,15 @@ else { $invariantVerdict = 'Passed' }
 $invariantDetail += $planNote
 
 # ---------------------------------------------------------------------------
-# Verdict 2: army-days WarSails vs AllOff, seed-stratified exact permutation test.
+# Verdict 2: army-days WarSails vs ChainOff, seed-stratified exact permutation test.
 # FeatureOff runs feed only the doctrine info below: an unusable or missing FeatureOff run does
 # not block this verdict (a rig error in any run still does - the job's artifacts are broken).
 # ---------------------------------------------------------------------------
 $armyStats = $null
 $armyInvalid = @($invalid | Where-Object { $_.Mode -ne 'FeatureOff' })
 $armyMissing = @($missingRuns | Where-Object { $expectedRuns[$_] -ne 'FeatureOff' })
-$hasAllOff = @($runs | Where-Object { $_.Mode -eq 'AllOff' }).Count -gt 0 -or @($expectedRuns.Values | Where-Object { $_ -eq 'AllOff' }).Count -gt 0
-$unbalancedSeeds = @(Get-UnbalancedSeeds @($runs | Where-Object { $_.Mode -eq 'WarSails' -or $_.Mode -eq 'AllOff' }) 'AllOff')
+$hasChainOff = @($runs | Where-Object { $_.Mode -eq 'ChainOff' }).Count -gt 0 -or @($expectedRuns.Values | Where-Object { $_ -eq 'ChainOff' }).Count -gt 0
+$unbalancedSeeds = @(Get-UnbalancedSeeds @($runs | Where-Object { $_.Mode -eq 'WarSails' -or $_.Mode -eq 'ChainOff' }) 'ChainOff')
 if ($plan.Error) {
     $armyVerdict = 'RigError'
     $armyDetail = $plan.Error
@@ -1139,9 +1141,9 @@ elseif ($rigErrorRuns.Count -gt 0) {
     $armyVerdict = 'RigError'
     $armyDetail = "rig error in $($rigErrorRuns.Count) of $($runs.Count) runs ($((@($rigErrorRuns | ForEach-Object { $_.Name + ': ' + $_.Reason })) -join '; '))"
 }
-elseif (-not $hasAllOff) {
+elseif (-not $hasChainOff) {
     $armyVerdict = 'Inconclusive'
-    $armyDetail = 'no AllOff baseline runs (army-days are judged WarSails vs AllOff)'
+    $armyDetail = 'no ChainOff baseline runs (army-days are judged WarSails vs ChainOff)'
 }
 elseif ($armyInvalid.Count -gt 0) {
     $armyVerdict = 'Inconclusive'
@@ -1153,27 +1155,27 @@ elseif ($armyMissing.Count -gt 0) {
 }
 elseif ($unbalancedSeeds.Count -gt 0) {
     $armyVerdict = 'Inconclusive'
-    $armyDetail = "seed(s) $($unbalancedSeeds -join ', ') lack a WarSails or an AllOff run"
+    $armyDetail = "seed(s) $($unbalancedSeeds -join ', ') lack a WarSails or a ChainOff run"
 }
 else {
-    $armyStats = Measure-Arms $runs 'AllOff' { $_.ArmyDays }
+    $armyStats = Measure-Arms $runs 'ChainOff' { $_.ArmyDays }
     $mdeLabel = if ($armyStats.Df -gt $TQuantile975.Count) { 'normal approx' } else { "t, df $($armyStats.Df)" }
-    $armyDetail = ('D={0} army-days ({1} of AO {2}), noise s={3}, p={4} ({5} perms, min p {6}), MDE ~{7} army-days ({8} of AO, {9})' -f
+    $armyDetail = ('D={0} army-days ({1} of CO {2}), noise s={3}, p={4} ({5} perms, min p {6}), MDE ~{7} army-days ({8} of CO, {9})' -f
         (Format-Number $armyStats.D), (Format-Percent $armyStats.D $armyStats.BaseMean), (Format-Number $armyStats.BaseMean),
         (Format-Number $armyStats.S), (Format-Number $armyStats.P '0.000'), $armyStats.Permutations,
         (Format-Number $armyStats.MinP '0.000'), (Format-Number $armyStats.Mde), (Format-Percent $armyStats.Mde $armyStats.BaseMean), $mdeLabel)
     if ($armyStats.MinP -ge $Alpha) { $armyVerdict = 'Inconclusive'; $armyDetail += " - design cannot reach alpha $Alpha" }
     elseif ($armyStats.P -lt $Alpha) { $armyVerdict = 'Failed' }
     elseif ($armyStats.Total -eq 0) { $armyVerdict = 'Inconclusive'; $armyDetail += ' - no non-ruler army-days in any run' }
-    elseif ($armyStats.BaseMean -eq 0) { $armyVerdict = 'Inconclusive'; $armyDetail += ' - AllOff mean is 0, no reference level' }
+    elseif ($armyStats.BaseMean -eq 0) { $armyVerdict = 'Inconclusive'; $armyDetail += ' - ChainOff mean is 0, no reference level' }
     elseif ([double]::IsNaN($armyStats.Mde) -or $armyStats.S -eq 0) { $armyVerdict = 'Inconclusive'; $armyDetail += ' - MDE not computable (noise s is 0 or undefined)' }
     else {
         $armyVerdict = 'Passed'
         if ($armyStats.MdePercent -gt $MdeWarnPercent) {
-            [void]$warnings.Add(('armydays: MDE ~{0} army-days is {1} of AO (above {2} %); only large effects are detectable, more seeds give a stronger test' -f
+            [void]$warnings.Add(('armydays: MDE ~{0} army-days is {1} of CO (above {2} %); only large effects are detectable, more seeds give a stronger test' -f
                 (Format-Number $armyStats.Mde), (Format-Percent $armyStats.Mde $armyStats.BaseMean), $MdeWarnPercent))
             # The rig shows only the detail of a job check, so the warning is repeated there.
-            $armyDetail += " - WARN weak test: MDE above $MdeWarnPercent % of AO"
+            $armyDetail += " - WARN weak test: MDE above $MdeWarnPercent % of CO"
         }
     }
 }
@@ -1185,7 +1187,7 @@ else {
 $doctrineStats = $null
 $doctrineRuns = @($runs | Where-Object { $_.Mode -eq 'WarSails' -or $_.Mode -eq 'FeatureOff' })
 $doctrineInvalid = @($doctrineRuns | Where-Object { -not $_.Valid })
-$doctrineMissing = @($missingRuns | Where-Object { $expectedRuns[$_] -ne 'AllOff' })
+$doctrineMissing = @($missingRuns | Where-Object { $expectedRuns[$_] -ne 'ChainOff' })
 $doctrineUnbalanced = @(Get-UnbalancedSeeds $doctrineRuns 'FeatureOff')
 $doctrineReason = $null
 if ($plan.Error) { $doctrineReason = $plan.Error }
@@ -1215,10 +1217,10 @@ if ($null -ne $armyStats) {
         $k = $kingdomId
         $name = @($validRuns | Where-Object { $_.PerKingdom.ContainsKey($k) } | ForEach-Object { $_.PerKingdom[$k].Name })[0]
         $kingdomArmyDays = { if ($_.PerKingdom.ContainsKey($k)) { $_.PerKingdom[$k].ArmyDays } else { 0 } }
-        $stats = Measure-Arms $validRuns 'AllOff' $kingdomArmyDays
+        $stats = Measure-Arms $validRuns 'ChainOff' $kingdomArmyDays
         $foMean = Get-Mean ([double[]]@($validRuns | Where-Object { $_.Mode -eq 'FeatureOff' } | ForEach-Object $kingdomArmyDays))
         $share = @{}
-        foreach ($mode in 'WarSails', 'AllOff', 'FeatureOff') {
+        foreach ($mode in 'WarSails', 'ChainOff', 'FeatureOff') {
             $own = 0; $ruler = 0
             foreach ($run in @($validRuns | Where-Object { $_.Mode -eq $mode -and $_.PerKingdom.ContainsKey($k) })) {
                 $own += $run.PerKingdom[$k].ArmyDays; $ruler += $run.PerKingdom[$k].RulerArmyDays
@@ -1226,8 +1228,8 @@ if ($null -ne $armyStats) {
             $share[$mode] = if ($own + $ruler -gt 0) { $ruler / [double]($own + $ruler) } else { [double]::NaN }
         }
         [void]$kingdomRows.Add([PSCustomObject]@{
-                KingdomId = $k; Kingdom = $name; WsMean = $stats.WsMean; AoMean = $stats.BaseMean; FoMean = $foMean; Diff = $stats.D; S = $stats.S
-                RulerShareWs = $share['WarSails']; RulerShareAo = $share['AllOff']; RulerShareFo = $share['FeatureOff']
+                KingdomId = $k; Kingdom = $name; WsMean = $stats.WsMean; CoMean = $stats.BaseMean; FoMean = $foMean; Diff = $stats.D; S = $stats.S
+                RulerShareWs = $share['WarSails']; RulerShareCo = $share['ChainOff']; RulerShareFo = $share['FeatureOff']
             })
     }
 }
@@ -1241,10 +1243,10 @@ $exitCode = if ($verdicts -contains 'RigError') { 1 } elseif ($verdicts -contain
 Write-Host ('{0,-34} {1} {2}' -f $CheckInvariant, $invariantVerdict, $invariantDetail)
 Write-Host ('{0,-34} {1} {2}' -f $CheckArmyDays, $armyVerdict, $armyDetail)
 if ($kingdomRows.Count -gt 0) {
-    Write-Host ('  info  {0,-20} {1,8} {2,8} {3,8} {4,7} {5,6}  {6}' -f 'kingdom', 'WS mean', 'AO mean', 'FO mean', 'WS-AO', 's', 'ruler share WS/AO/FO')
+    Write-Host ('  info  {0,-20} {1,8} {2,8} {3,8} {4,7} {5,6}  {6}' -f 'kingdom', 'WS mean', 'CO mean', 'FO mean', 'WS-CO', 's', 'ruler share WS/CO/FO')
     foreach ($row in $kingdomRows) {
-        Write-Host ('  info  {0,-20} {1,8} {2,8} {3,8} {4,7} {5,6}  {6}/{7}/{8}' -f $row.Kingdom, (Format-Number $row.WsMean), (Format-Number $row.AoMean),
-            (Format-Number $row.FoMean), (Format-Number $row.Diff), (Format-Number $row.S), (Format-Percent $row.RulerShareWs 1), (Format-Percent $row.RulerShareAo 1), (Format-Percent $row.RulerShareFo 1))
+        Write-Host ('  info  {0,-20} {1,8} {2,8} {3,8} {4,7} {5,6}  {6}/{7}/{8}' -f $row.Kingdom, (Format-Number $row.WsMean), (Format-Number $row.CoMean),
+            (Format-Number $row.FoMean), (Format-Number $row.Diff), (Format-Number $row.S), (Format-Percent $row.RulerShareWs 1), (Format-Percent $row.RulerShareCo 1), (Format-Percent $row.RulerShareFo 1))
     }
 }
 foreach ($row in $violations) { Write-Host "  FAIL  $row" }
@@ -1255,7 +1257,7 @@ $armyJson = [ordered]@{ check = $CheckArmyDays; verdict = $armyVerdict; detail =
 if ($null -ne $armyStats) {
     $armyJson.d = ConvertTo-JsonNumber $armyStats.D
     $armyJson.wsMean = ConvertTo-JsonNumber $armyStats.WsMean
-    $armyJson.aoMean = ConvertTo-JsonNumber $armyStats.BaseMean
+    $armyJson.coMean = ConvertTo-JsonNumber $armyStats.BaseMean
     $armyJson.s = ConvertTo-JsonNumber $armyStats.S
     $armyJson.df = $armyStats.Df
     $armyJson.p = ConvertTo-JsonNumber $armyStats.P
@@ -1303,9 +1305,9 @@ $doc = [ordered]@{
     missingRuns = @($missingRuns)
     kingdoms    = @($kingdomRows | ForEach-Object {
             [ordered]@{
-                kingdomId = $_.KingdomId; kingdom = $_.Kingdom; wsMean = ConvertTo-JsonNumber $_.WsMean; aoMean = ConvertTo-JsonNumber $_.AoMean
+                kingdomId = $_.KingdomId; kingdom = $_.Kingdom; wsMean = ConvertTo-JsonNumber $_.WsMean; coMean = ConvertTo-JsonNumber $_.CoMean
                 foMean = ConvertTo-JsonNumber $_.FoMean; diff = ConvertTo-JsonNumber $_.Diff; s = ConvertTo-JsonNumber $_.S
-                rulerShareWs = ConvertTo-JsonNumber $_.RulerShareWs; rulerShareAo = ConvertTo-JsonNumber $_.RulerShareAo; rulerShareFo = ConvertTo-JsonNumber $_.RulerShareFo
+                rulerShareWs = ConvertTo-JsonNumber $_.RulerShareWs; rulerShareCo = ConvertTo-JsonNumber $_.RulerShareCo; rulerShareFo = ConvertTo-JsonNumber $_.RulerShareFo
             }
         })
     warnings    = @($warnings)

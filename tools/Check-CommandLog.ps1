@@ -20,19 +20,19 @@
     naming) and AC10 (feature-off config) are interpreted. AC9, AC21 and the
     liveness part of AC13/AC23 (tracked > 0, interior-day flush, MinDays) need the
     naval chain, so they apply to WarSails and FeatureOff and report "N/A for mode"
-    for NoDlc and AllOff. AC20 applies to every mode but AllOff (no delegations with
+    for NoDlc and ChainOff. AC20 applies to every mode but ChainOff (no delegations with
     the chain off); FeatureOff only requires a Defense delegation (with the doctrine
     off only lords already leading a host become Offense holders, maybe none). AC1/AC2
-    is N/A for AllOff. "non-zero contention" is a FAIL in every mode (a real
+    is N/A for ChainOff. "non-zero contention" is a FAIL in every mode (a real
     double-write is always a bug):
       WarSails   - War Sails (NavalDLC) enabled, everything on.
       NoDlc      - War Sails disabled, everything on.
       FeatureOff - War Sails enabled, ONLY the marshal doctrine off (EnableMarshalDoctrine
                    = false); chain of command and naval orders stay on, so the chain
                    runs exactly as in WarSails. AC10 proves the doctrine is off from the init line.
-      AllOff     - War Sails enabled, marshal doctrine, chain of command and naval orders
-                   off (the vanilla-like baseline of CW-1). AC10 proves all three are off
-                   from the init line and that no daily [Command] lines appear.
+      ChainOff   - War Sails enabled, marshal doctrine ON, chain of command and naval orders
+                   off: the pre-chain-of-command baseline (AC25a, doctrine only) of CW-1. AC10
+                   proves that config from the init line and that no daily [Command] lines appear.
 
 .PARAMETER MinDays
     Minimum number of in-game days the log must cover before day-count-dependent
@@ -59,7 +59,7 @@ param(
     [string]$LogPath = (Join-Path $env:UserProfile 'Documents\Mount and Blade II Bannerlord\CoherentWarAI\CoherentWarAI.log'),
 
     [Parameter(Mandatory = $true)]
-    [ValidateSet('WarSails', 'NoDlc', 'FeatureOff', 'AllOff')]
+    [ValidateSet('WarSails', 'NoDlc', 'FeatureOff', 'ChainOff')]
     [string]$Mode,
 
     [int]$MinDays = -1,
@@ -123,7 +123,7 @@ function Add-Result {
 # ---------------------------------------------------------------------------
 # AC1 (WarSails) / AC2 (NoDlc) - the one-time model chain line.
 # FeatureOff keeps War Sails and the chain on (only the marshal doctrine is off),
-# so it must name the same Naval chain as WarSails. AllOff skips it: the line says
+# so it must name the same Naval chain as WarSails. ChainOff skips it: the line says
 # nothing about the criteria the baseline exists to test.
 # ---------------------------------------------------------------------------
 $chainPattern = '^\[Command\] Command chain: TargetScore->(.+), Garrison->(.+), Army->(.+)$'
@@ -143,7 +143,7 @@ elseif ($Mode -eq 'NoDlc') {
     $acLabel = 'AC2'
     $expectedPrefix = 'Default'
 }
-elseif ($Mode -eq 'AllOff') {
+elseif ($Mode -eq 'ChainOff') {
     $acLabel = 'AC1/AC2'
     $expectedPrefix = $null
 }
@@ -152,8 +152,8 @@ else {
     $expectedPrefix = 'Naval'
 }
 
-if ($Mode -eq 'AllOff') {
-    Add-Result $acLabel 'N/A for mode' 'Chain-naming check (AC1 War Sails / AC2 NoDlc) does not apply to -Mode AllOff.'
+if ($Mode -eq 'ChainOff') {
+    Add-Result $acLabel 'N/A for mode' 'Chain-naming check (AC1 War Sails / AC2 NoDlc) does not apply to -Mode ChainOff.'
 }
 elseif ($null -eq $chainLine) {
     Add-Result $acLabel 'FAIL' 'No "[Command] Command chain:" line found in the log at all.'
@@ -184,9 +184,10 @@ else {
 # become Offense holders, so such lines are legitimate. A "no non-host MARSHAL"
 # check would need the log to say who led a host; it does not.
 #
-# AllOff = marshal doctrine, chain of command and naval orders off: the same last
-# init line must say 'marshal doctrine: False' and 'chain of command: False' (and
-# 'naval orders: False' when it prints that setting - only "Settings in effect."
+# ChainOff = the pre-chain-of-command baseline (AC25a, doctrine only): marshal doctrine
+# on, chain of command and naval orders off. The same last init line must say
+# 'marshal doctrine: True' and 'chain of command: False' (and must not say
+# 'naval orders: True' when it prints that setting - only "Settings in effect."
 # does), and no DAILY [Command] delegation/order lines may appear (the one-time
 # chain line is allowed - it is deliberately ungated).
 # ---------------------------------------------------------------------------
@@ -198,8 +199,8 @@ foreach ($line in $rawLines) {
 }
 $noInitLineText = '(no [Init] "CoherentWarAI active." or "Settings in effect." line found)'
 
-if ($Mode -eq 'AllOff') {
-    $initOk = ($null -ne $initLine) -and ($initLine -match 'marshal doctrine: False\b') -and ($initLine -match 'chain of command: False\b') -and ($initLine -notmatch 'naval orders: True\b')
+if ($Mode -eq 'ChainOff') {
+    $initOk = ($null -ne $initLine) -and ($initLine -match 'marshal doctrine: True\b') -and ($initLine -match 'chain of command: False\b') -and ($initLine -notmatch 'naval orders: True\b')
 
     $dailyCommandLines = New-Object System.Collections.ArrayList
     foreach ($day in $dayOrder) {
@@ -212,17 +213,17 @@ if ($Mode -eq 'AllOff') {
 
     if (-not $initOk) {
         $shown = if ($null -eq $initLine) { $noInitLineText } else { $initLine }
-        Add-Result 'AC10' 'FAIL' "Init line does not say 'marshal doctrine: False', 'chain of command: False' (and 'naval orders: False' where printed): $shown"
+        Add-Result 'AC10' 'FAIL' "Init line does not say 'marshal doctrine: True', 'chain of command: False' (and 'naval orders: False' where printed): $shown"
     }
     elseif ($dailyCommandLines.Count -gt 0) {
         Add-Result 'AC10' 'FAIL' "Found $($dailyCommandLines.Count) daily [Command] line(s) despite the chain of command being off, e.g.: $($dailyCommandLines[0])"
     }
     else {
-        Add-Result 'AC10' 'PASS' "Init line confirms doctrine, chain of command and naval orders off; 0 daily [Command] lines across $dayCount day(s): $initLine"
+        Add-Result 'AC10' 'PASS' "Init line confirms doctrine on, chain of command and naval orders off; 0 daily [Command] lines across $dayCount day(s): $initLine"
     }
 }
 elseif ($Mode -ne 'FeatureOff') {
-    Add-Result 'AC10' 'N/A for mode' 'Feature-off config check only applies to -Mode FeatureOff and -Mode AllOff.'
+    Add-Result 'AC10' 'N/A for mode' 'Feature-off config check only applies to -Mode FeatureOff and -Mode ChainOff.'
 }
 else {
     $initOk = ($null -ne $initLine) -and ($initLine -match 'marshal doctrine: False\b') -and ($initLine -match 'chain of command: True\b')
@@ -257,8 +258,8 @@ foreach ($day in $windowDays9) {
 if ($Mode -eq 'NoDlc') {
     Add-Result 'AC9' 'N/A for mode' 'Naval delegation/patrol needs War Sails; -Mode NoDlc has none.'
 }
-elseif ($Mode -eq 'AllOff') {
-    Add-Result 'AC9' 'N/A for mode' 'Naval delegation/patrol needs the chain of command and naval orders; -Mode AllOff has them off (AC10).'
+elseif ($Mode -eq 'ChainOff') {
+    Add-Result 'AC9' 'N/A for mode' 'Naval delegation/patrol needs the chain of command and naval orders; -Mode ChainOff has them off (AC10).'
 }
 elseif ($null -ne $firstDelegatesNaval -and $null -ne $firstOrdersPatrol) {
     Add-Result 'AC9' 'PASS' "First delegation: $firstDelegatesNaval | First order: $firstOrdersPatrol"
@@ -308,8 +309,8 @@ $countsSummary20 = $perDayCounts20 -join ' '
 # only lords already leading a host (possibly none), so only the Defense delegation is
 # required there; an Offense delegation is allowed but not demanded.
 $offenseNeeded = ($Mode -ne 'FeatureOff')
-if ($Mode -eq 'AllOff') {
-    Add-Result 'AC20' 'N/A for mode' 'Defense/Offense delegation needs the chain of command; -Mode AllOff has no delegations by design (AC10).'
+if ($Mode -eq 'ChainOff') {
+    Add-Result 'AC20' 'N/A for mode' 'Defense/Offense delegation needs the chain of command; -Mode ChainOff has no delegations by design (AC10).'
 }
 elseif ($defenseFound -and ($offenseFound -or -not $offenseNeeded)) {
     $offenseShown = if ($offenseNeeded) { $firstOffense } else { '(not required for FeatureOff)' }
@@ -342,8 +343,8 @@ foreach ($line in $rawLines) {
 if ($Mode -eq 'NoDlc') {
     Add-Result 'AC21' 'N/A for mode' 'Naval line shape needs War Sails; -Mode NoDlc has none.'
 }
-elseif ($Mode -eq 'AllOff') {
-    Add-Result 'AC21' 'N/A for mode' 'Naval line shape needs the chain of command and naval orders; -Mode AllOff has them off (AC10).'
+elseif ($Mode -eq 'ChainOff') {
+    Add-Result 'AC21' 'N/A for mode' 'Naval line shape needs the chain of command and naval orders; -Mode ChainOff has them off (AC10).'
 }
 elseif ($null -ne $navalDelegateLine -and $null -ne $navalOrderLine) {
     Add-Result 'AC21' 'PASS' "$navalDelegateLine | $navalOrderLine"
@@ -422,7 +423,7 @@ $perDayText = $perDayCounts -join ', '
 if ($nonZeroContention.Count -gt 0) {
     Add-Result 'AC13/AC23' 'FAIL' "Non-zero contention reported: $($nonZeroContention -join ' | ')"
 }
-elseif ($Mode -eq 'NoDlc' -or $Mode -eq 'AllOff') {
+elseif ($Mode -eq 'NoDlc' -or $Mode -eq 'ChainOff') {
     Add-Result 'AC13/AC23' 'N/A for mode' "Liveness checks need the naval dispatch (day-1 writer); -Mode $Mode has none. Hard check still ran: $($allContention.Count) [Contention] line(s), none non-zero."
 }
 elseif ($trackedZeroOutsideLaunch.Count -gt 0) {
@@ -518,9 +519,9 @@ else {
 
 # ---------------------------------------------------------------------------
 # AC25a - army composition cannot be read from the log at all; it is judged
-# across a whole WarSails/FeatureOff/AllOff job by CW-1 (tools\Compare-Ac25a.ps1).
+# across a whole WarSails/FeatureOff/ChainOff job by CW-1 (tools\Compare-Ac25a.ps1).
 # ---------------------------------------------------------------------------
-Add-Result 'AC25a' 'MANUAL' 'Army composition cannot be evaluated from a single mod log. It is judged by CW-1 (coherentwarai.ac25a-digest): tools\Compare-Ac25a.ps1 over a job of WarSails, FeatureOff and AllOff runs on several seeds checks that no non-ruler lord who holds only Defense or Naval (never Offense, never MARSHAL/attacks) leads an army, and compares total army-days WarSails vs AllOff (COMMAND-SLICE-2A.md AC25a).'
+Add-Result 'AC25a' 'MANUAL' 'Army composition cannot be evaluated from a single mod log. It is judged by CW-1 (coherentwarai.ac25a-digest): tools\Compare-Ac25a.ps1 over a job of WarSails, FeatureOff and ChainOff runs on several seeds checks that no non-ruler lord who holds only Defense or Naval (never Offense, never MARSHAL/attacks) leads an army, and compares total army-days WarSails vs ChainOff (COMMAND-SLICE-2A.md AC25a).'
 
 # ---------------------------------------------------------------------------
 # Print the table and finish.
