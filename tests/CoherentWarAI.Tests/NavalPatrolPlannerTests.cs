@@ -365,6 +365,63 @@ namespace CoherentWarAI.Tests
             }
         }
 
+        // ---- PatrolCount over addressable lords only (T-0111) ----
+        //
+        // The lane count used to include army leaders, who RankPatrolAddressees never
+        // ranks. Lanes beyond the pool were already dropped (assignCount caps at the
+        // pool size), so no lane went unmanned; the effect of the fix is that the lane
+        // count now scales with addressable lords only, i.e. fewer patrols at low
+        // competence.
+
+        [Theory]
+        [InlineData(0f)]
+        [InlineData(0.25f)]
+        [InlineData(0.5f)]
+        [InlineData(0.75f)]
+        [InlineData(1f)]
+        public void PatrolCount_NeverExceedsTheAddressableRanking(float competence)
+        {
+            var leadsArmy = new[] { true, false, false, true, false, false, false };
+            var isAggressive = new[] { false, true, false, false, false, true, false };
+            var score = new[] { 5f, 4f, 3f, 2f, 1f, 6f, 7f };
+
+            int count = NavalPatrolPlanner.PatrolCount(leadsArmy, competence, maxPatrols: 10);
+            int addressable = NavalPatrolPlanner.RankPatrolAddressees(isAggressive, score, leadsArmy).Length;
+
+            Assert.True(count <= addressable, $"PatrolCount {count} exceeds {addressable} addressable lords");
+        }
+
+        [Fact]
+        public void PatrolCount_ArmyLeadersDoNotCount_FourCandidatesTwoLeadingArmies_OneLaneNotTwo()
+        {
+            var leadsArmy = new[] { true, false, true, false };
+
+            Assert.Equal(2, NavalPatrolPlanner.PatrolCount(4, competence: 0f, maxPatrols: 5));
+            Assert.Equal(1, NavalPatrolPlanner.PatrolCount(leadsArmy, competence: 0f, maxPatrols: 5));
+        }
+
+        [Fact]
+        public void PatrolCount_AllCandidatesLeadArmies_ReturnsZero()
+        {
+            Assert.Equal(0, NavalPatrolPlanner.PatrolCount(new[] { true, true }, competence: 1f, maxPatrols: 5));
+        }
+
+        [Fact]
+        public void PatrolCount_NoArmyLeaders_MatchesTheCountOverload()
+        {
+            var leadsArmy = new[] { false, false, false, false };
+
+            Assert.Equal(
+                NavalPatrolPlanner.PatrolCount(4, 0.7f, 5),
+                NavalPatrolPlanner.PatrolCount(leadsArmy, 0.7f, 5));
+        }
+
+        [Fact]
+        public void PatrolCount_NullLeadsArmy_ReturnsZero()
+        {
+            Assert.Equal(0, NavalPatrolPlanner.PatrolCount((bool[])null, competence: 1f, maxPatrols: 5));
+        }
+
         // ---- Army leaders are never addressed (log analysis 2026-11-03) ----
         //
         // Defect: the ranking handed army leaders patrol lanes, and dispatch drops every

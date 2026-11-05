@@ -149,6 +149,32 @@ namespace CoherentWarAI.Logic
         }
 
         /// <summary>
+        /// <see cref="PatrolCount(int, float, int)"/> over the lords that can actually
+        /// be addressed: candidates marked in <paramref name="leadsArmy"/> are never
+        /// ranked by <see cref="RankPatrolAddressees(bool[], float[], bool[])"/>, so
+        /// the lane count scales with addressable lords only: with a low competence
+        /// that means fewer patrols, never lanes beyond the lords left to sail them.
+        /// The count never exceeds the length of that ranking. Unlike
+        /// <c>RankPatrolAddressees(..., null)</c>, which excludes nobody, a null
+        /// <paramref name="leadsArmy"/> here means no candidates and yields zero patrols.
+        /// </summary>
+        public static int PatrolCount(bool[] leadsArmy, float competence, int maxPatrols)
+        {
+            int addressable = 0;
+            if (leadsArmy != null)
+            {
+                foreach (bool leads in leadsArmy)
+                {
+                    if (!leads)
+                    {
+                        addressable++;
+                    }
+                }
+            }
+            return PatrolCount(addressable, competence, maxPatrols);
+        }
+
+        /// <summary>
         /// Orders naval candidates for patrol-lane assignment so defenders are used
         /// before attackers: candidates with <paramref name="isAggressive"/> false
         /// (not released to attack this tick) come first, ranked by

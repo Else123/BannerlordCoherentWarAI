@@ -555,24 +555,29 @@ namespace CoherentWarAI.Behaviors
 
             float competence = MarshalPlanner.CommandCompetence(
                 holder.GetSkillValue(DefaultSkills.Leadership), holder.GetSkillValue(DefaultSkills.Tactics));
-            int wanted = NavalPatrolPlanner.PatrolCount(navalCandidates.Count, competence, settings.MaxNavalPatrolsPerRealm);
+            // Army leaders stay naval candidates - they may hold the Naval domain -
+            // but are never addressed: dispatch drops their patrol the next hour
+            // (NavalPatrolDispatch.DropLeadsArmy), which left the lane unmanned. The
+            // lane count therefore only considers the lords that can be addressed.
+            int candidateCount = navalCandidates.Count;
+            bool[] leadsArmy = new bool[candidateCount];
+            for (int i = 0; i < candidateCount; i++)
+            {
+                leadsArmy[i] = LeadsArmy(navalCandidates[i]);
+            }
+
+            int wanted = NavalPatrolPlanner.PatrolCount(leadsArmy, competence, settings.MaxNavalPatrolsPerRealm);
             PatrolLane[] lanes = NavalPatrolPlanner.SelectLanes(ports, wanted);
             if (lanes.Length == 0)
             {
                 return;
             }
 
-            int candidateCount = navalCandidates.Count;
             bool[] isAggressive = new bool[candidateCount];
             float[] scores = new float[candidateCount];
-            bool[] leadsArmy = new bool[candidateCount];
             for (int i = 0; i < candidateCount; i++)
             {
                 MobileParty candidate = navalCandidates[i];
-                // Army leaders stay naval candidates - they may hold the Naval domain -
-                // but are never addressed: dispatch drops their patrol the next hour
-                // (NavalPatrolDispatch.DropLeadsArmy), which left the lane unmanned.
-                leadsArmy[i] = LeadsArmy(candidate);
                 // Two independent attacker signals: today's posture (only written when
                 // EnableDefensivePosture is on - vanilla never sets PartyObjective) and the
                 // realm's Offense holders. The second keeps this ranking meaningful when

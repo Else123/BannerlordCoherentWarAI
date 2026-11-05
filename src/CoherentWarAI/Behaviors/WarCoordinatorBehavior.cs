@@ -32,10 +32,11 @@ namespace CoherentWarAI.Behaviors
         private static Dictionary<IFaction, IFaction> _primaryEnemies = new Dictionary<IFaction, IFaction>();
 
         /// <summary>
-        /// Set while the focus could not be chosen for want of anything to judge by,
-        /// so it is chosen on the first hour that has it rather than a day later.
+        /// Realms whose focus could not be chosen for want of anything to judge by
+        /// (every enemy still reads strength 0). Decided per realm: one realm's enemy
+        /// becoming measurable never settles another realm's focus.
         /// </summary>
-        private bool _focusPending;
+        private readonly FocusDeferral<Kingdom> _focusDeferral = new FocusDeferral<Kingdom>();
 
         /// <summary>
         /// Whether this party is committed to something it cannot simply walk away
@@ -86,110 +87,131 @@ namespace CoherentWarAI.Behaviors
             CoherentWarAISettings settings = CoherentWarAISettings.Current;
             if (settings == null || !settings.EnableEnemyFocus)
             {
-                _focusPending = false;
+                _focusDeferral.Clear();
                 if (_primaryEnemies.Count > 0)
                 {
                     _primaryEnemies = new Dictionary<IFaction, IFaction>();
                 }
                 return;
             }
-
-            // A new campaign launches before its lords have taken the field: every
-            // enemy then reads strength 0 with no shared border, and the fallback
-            // below would simply take whichever war happens to be listed first.
-            if (!AnyEnemyStrengthKnown())
-            {
-                _focusPending = true;
-                if (_primaryEnemies.Count > 0)
-                {
-                    _primaryEnemies = new Dictionary<IFaction, IFaction>();
-                }
-                return;
-            }
-            _focusPending = false;
 
             Dictionary<IFaction, IFaction> fresh = new Dictionary<IFaction, IFaction>();
-
             foreach (Kingdom kingdom in Kingdom.All)
             {
-                if (kingdom == null || kingdom.IsEliminated || kingdom.FactionsAtWarWith.Count == 0)
+                if (kingdom != null)
                 {
-                    continue;
-                }
-
-                IFaction best = null;
-                float bestScore = 0f;
-                int bestContact = 0;
-                float bestStrength = 0f;
-
-                // Fallback for a realm whose wars share no land border at all -
-                // fought purely at sea, or against landless clans. Without it every
-                // one of its wars would rank secondary for want of a comparison.
-                IFaction strongestReachless = null;
-                float strongestReachlessStrength = -1f;
-
-                for (int i = 0; i < kingdom.FactionsAtWarWith.Count; i++)
-                {
-                    IFaction enemy = kingdom.FactionsAtWarWith[i];
-                    if (enemy == null)
-                    {
-                        continue;
-                    }
-
-                    int contact = CountSharedBorders(kingdom, enemy);
-                    float strength = enemy.CurrentTotalStrength;
-                    float score = StrategicPriority.PrimaryEnemyScore(strength, contact, settings.BorderWeight);
-
-                    if (score > bestScore)
-                    {
-                        bestScore = score;
-                        best = enemy;
-                        bestContact = contact;
-                        bestStrength = strength;
-                    }
-                    else if (score <= 0f && strength > strongestReachlessStrength)
-                    {
-                        strongestReachlessStrength = strength;
-                        strongestReachless = enemy;
-                    }
-                }
-
-                if (best == null)
-                {
-                    best = strongestReachless;
-                }
-
-                if (best != null)
-                {
-                    fresh[kingdom] = best;
-                    WarAiLog.Write("Focus", string.Format(
-                        "{0} concentrates on {1} (strength {2:F0}, {3} shared borders) out of {4} wars",
-                        kingdom.Name, best.Name, bestStrength, bestContact, kingdom.FactionsAtWarWith.Count));
+                    ChoosePrimaryEnemy(kingdom, settings, fresh);
                 }
             }
-
             _primaryEnemies = fresh;
         }
 
-        /// <summary>Whether any realm's enemy has measurable strength yet - false until the lords are on the map.</summary>
-        private static bool AnyEnemyStrengthKnown()
+        /// <summary>
+        /// Settles the focus of realms deferred earlier, as soon as one of their
+        /// enemies has measurable strength. Realms still without one are skipped
+        /// (and not logged again); realms that already have a focus are untouched.
+        /// </summary>
+        private void ResolveDeferredFocus()
         {
-            foreach (Kingdom kingdom in Kingdom.All)
+            CoherentWarAISettings settings = CoherentWarAISettings.Current;
+            if (settings == null || !settings.EnableEnemyFocus)
             {
-                if (kingdom == null || kingdom.IsEliminated)
+                return;
+            }
+
+            foreach (Kingdom kingdom in _focusDeferral.DeferredRealms())
+            {
+                ChoosePrimaryEnemy(kingdom, settings, _primaryEnemies);
+            }
+        }
+
+        /// <summary>
+        /// Chooses one realm's primary enemy into <paramref name="primaryEnemies"/>.
+        /// A realm none of whose enemies has measurable strength yet - lords not on
+        /// the map at launch, or a faction that never gains any - is deferred and
+        /// gets no focus: the fallback below would simply take whichever war happens
+        /// to be listed first. Only the start of a deferral is logged.
+        /// </summary>
+        private void ChoosePrimaryEnemy(Kingdom kingdom, CoherentWarAISettings settings, Dictionary<IFaction, IFaction> primaryEnemies)
+        {
+            if (kingdom.IsEliminated || kingdom.FactionsAtWarWith.Count == 0)
+            {
+                _focusDeferral.Update(kingdom, deferred: false);
+                return;
+            }
+
+            List<float> strengths = new List<float>(kingdom.FactionsAtWarWith.Count);
+            for (int i = 0; i < kingdom.FactionsAtWarWith.Count; i++)
+            {
+                IFaction enemy = kingdom.FactionsAtWarWith[i];
+                if (enemy != null)
+                {
+                    strengths.Add(enemy.CurrentTotalStrength);
+                }
+            }
+
+            if (!FocusDeferral.HasMeasurableEnemy(strengths))
+            {
+                primaryEnemies.Remove(kingdom);
+                if (_focusDeferral.Update(kingdom, deferred: true))
+                {
+                    WarAiLog.Write("Focus", string.Format(
+                        "{0} defers its focus: none of its {1} enemies has measurable strength (rechecked hourly)",
+                        kingdom.Name, strengths.Count));
+                }
+                return;
+            }
+            _focusDeferral.Update(kingdom, deferred: false);
+
+            IFaction best = null;
+            float bestScore = 0f;
+            int bestContact = 0;
+            float bestStrength = 0f;
+
+            // Fallback for a realm whose wars share no land border at all -
+            // fought purely at sea, or against landless clans. Without it every
+            // one of its wars would rank secondary for want of a comparison.
+            IFaction strongestReachless = null;
+            float strongestReachlessStrength = -1f;
+
+            for (int i = 0; i < kingdom.FactionsAtWarWith.Count; i++)
+            {
+                IFaction enemy = kingdom.FactionsAtWarWith[i];
+                if (enemy == null)
                 {
                     continue;
                 }
-                for (int i = 0; i < kingdom.FactionsAtWarWith.Count; i++)
+
+                int contact = CountSharedBorders(kingdom, enemy);
+                float strength = enemy.CurrentTotalStrength;
+                float score = StrategicPriority.PrimaryEnemyScore(strength, contact, settings.BorderWeight);
+
+                if (score > bestScore)
                 {
-                    IFaction enemy = kingdom.FactionsAtWarWith[i];
-                    if (enemy != null && enemy.CurrentTotalStrength > 0f)
-                    {
-                        return true;
-                    }
+                    bestScore = score;
+                    best = enemy;
+                    bestContact = contact;
+                    bestStrength = strength;
+                }
+                else if (score <= 0f && strength > strongestReachlessStrength)
+                {
+                    strongestReachlessStrength = strength;
+                    strongestReachless = enemy;
                 }
             }
-            return false;
+
+            if (best == null)
+            {
+                best = strongestReachless;
+            }
+
+            if (best != null)
+            {
+                primaryEnemies[kingdom] = best;
+                WarAiLog.Write("Focus", string.Format(
+                    "{0} concentrates on {1} (strength {2:F0}, {3} shared borders) out of {4} wars",
+                    kingdom.Name, best.Name, bestStrength, bestContact, kingdom.FactionsAtWarWith.Count));
+            }
         }
 
         /// <summary>Fortifications of ours that directly adjoin theirs.</summary>
@@ -230,11 +252,8 @@ namespace CoherentWarAI.Behaviors
         {
             Recompute();
             // Clan strength is refreshed hourly by vanilla (KingdomManager.HourlyTickClan),
-            // so a focus deferred at launch is settled within the campaign's first hours.
-            if (_focusPending)
-            {
-                ChoosePrimaryEnemies();
-            }
+            // so a deferred focus (at launch or later) is settled within the hour its enemy becomes measurable.
+            ResolveDeferredFocus();
         }
 
         /// <summary>
