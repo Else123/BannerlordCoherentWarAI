@@ -129,6 +129,7 @@
     <Compile Include="Logic\NavalPatrolDispatch.cs" />
     <Compile Include="Logic\NavalPatrolPlanner.cs" />
     <Compile Include="Logic\GarrisonPlanner.cs" />
+    <Compile Include="Logic\NearbyForce.cs" />
     <Compile Include="Logic\PosturePlanner.cs" />
     <Compile Include="Logic\TargetWeights.cs" />
     <Compile Include="Models\CoherentGarrisonModel.cs" />

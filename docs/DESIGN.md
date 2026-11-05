@@ -25,9 +25,31 @@ live game state (defender strength, neighbor ownership) into them.
 
 ### Slice C - Garrisons (`SettlementGarrisonModel`)
 Scales garrison target size and auto-recruitment by a threat factor derived from
-whether a settlement is on a hostile border and the local threat/ally intensity,
-so border fiefs hold and refill larger garrisons while safe interior fiefs free
-troops for the field.
+whether a settlement is on a hostile border and the local threat, so border fiefs
+hold and refill larger garrisons while safe interior fiefs free troops for the field.
+
+Local threat is measured by the mod itself (`GarrisonPlanner.ActiveThreat`), not
+read from vanilla's `NearbyLandThreatIntensity`/`NearbyNavalThreatIntensity`.
+Every ~3 h vanilla adds three times the threat value of each hostile party nearby
+(bandits included, at half weight) plus a flat +0.6 for every alarmed own caravan
+or villager party, and decays the total by only 0.85 - it has no fixed scale - and
+it skips every party in an army. In a 31-day run it kept the gateway
+multiplier at its cap (Qasira x2.72 on 30 of 31 days) while a marching enemy army
+did not register at all.
+
+The own measure: hostile lord parties and armies (an army once, through its
+leader, with the whole army's strength) within vanilla's threat check radius
+(`MobilePartyAIModel.GetSettlementNearbyThreatAndAllyCheckRadius`; land around
+the gate, sea around the port for coastal fiefs), each weighted linearly from 1 at
+the search centre to 0 at the radius, divided by the defenders - garrison plus
+militia plus `AllyWeight` (0.25) of friendly lords nearby, never less than
+`MinDefenceStrength` (50, about 40 mid-tier troops). Bandits, caravans and
+villagers do not count; neither do enemies resting inside another settlement,
+disbanding or leaderless enemy parties, or lords of allied kingdoms (neutral, as in
+vanilla). The lord asking how many troops to take or leave, and his army, never
+count as defenders of that garrison. 1.0 means the enemy at the gate matches the
+defence; `GarrisonThreatCap` (4) is reached only at a fourfold overmatch (against
+an emptied fief: about 200 strength at the gate, a full lord party) or under siege.
 
 ### Slice B - Strategic coordinator (`CampaignBehaviorBase`)
 A per-kingdom strategic layer that derives fronts and per-objective "claims" from

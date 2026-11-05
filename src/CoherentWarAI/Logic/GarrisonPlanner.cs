@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace CoherentWarAI.Logic
 {
@@ -24,6 +25,16 @@ namespace CoherentWarAI.Logic
         public const float DefaultChokepointGain = 0.5f;
         public const float DefaultChokepointSaturation = 2f;
         public const int DefaultRecruitCapMax = 3;
+
+        /// <summary>
+        /// Smallest defence <see cref="ActiveThreat"/> divides by, in the units of
+        /// vanilla's PartyBase.EstimatedStrength (DefaultMilitaryPowerModel: about
+        /// 0.66 per tier-1 recruit, 1.3 per tier-3 and 2.1 per tier-5 troop). 50 is
+        /// roughly a skeleton garrison of 40 mid-tier troops. Below that the ratio is
+        /// noise, and an emptied fief still reaches the cap against any real force
+        /// at its gate (about 150 mid-tier troops, i.e. a full lord party).
+        /// </summary>
+        public const float MinDefenceStrength = 50f;
 
         /// <summary>
         /// How much of a gateway a settlement is: high only when it both faces enemy
@@ -69,6 +80,83 @@ namespace CoherentWarAI.Logic
                 factor = peaceCap;
             }
             return factor < 0f ? 0f : factor;
+        }
+
+        /// <summary>
+        /// Active threat on a settlement for <see cref="ThreatFactor"/>: hostile lord
+        /// strength nearby, as a multiple of what defends it (garrison and militia,
+        /// plus <paramref name="allyWeight"/> of the friendly lords nearby). 1 means
+        /// the enemy at the gate matches the defence; <paramref name="threatCap"/> is
+        /// reached only at that multiple, i.e. a real overmatch.
+        ///
+        /// Vanilla's NearbyLandThreatIntensity is deliberately not used: it adds
+        /// bandits and the owner's own alarmed caravans and villagers, accumulates
+        /// with only a mild decay (no fixed scale), and ignores every party in an
+        /// army - so it sat at the cap almost permanently while a marching enemy
+        /// army did not register at all.
+        ///
+        /// Only lord forces count. An army counts once, through its leader, whose
+        /// strength is the whole army's; attached members are skipped. Each force is
+        /// weighted by how close it is (<see cref="ProximityWeight"/>).
+        /// </summary>
+        public static float ActiveThreat(IReadOnlyList<NearbyForce> forces, float defenderStrength,
+            float allyWeight, float threatCap)
+        {
+            float cap = Math.Max(0f, threatCap);
+            float hostile = 0f;
+            float friendly = 0f;
+
+            // Index loop: this runs on the hourly AI path, and an interface foreach
+            // would box the list enumerator on every call.
+            for (int i = 0; i < forces.Count; i++)
+            {
+                NearbyForce force = forces[i];
+                if (!force.IsLordForce || force.IsAttachedToArmy || force.Strength <= 0f)
+                {
+                    continue;
+                }
+                // The lord asking about this garrison is not its defender.
+                if (force.Stance == ForceStance.Friendly && force.BelongsToRequester)
+                {
+                    continue;
+                }
+                float weighted = force.Strength * ProximityWeight(force.Distance, force.SearchRadius);
+                if (force.Stance == ForceStance.Hostile)
+                {
+                    hostile += weighted;
+                }
+                else if (force.Stance == ForceStance.Friendly)
+                {
+                    friendly += weighted;
+                }
+            }
+
+            if (hostile <= 0f)
+            {
+                return 0f;
+            }
+
+            // A floor rather than a special case for "undefended": the ratio stays
+            // finite and continuous, so an enemy fading in at the radius edge of an
+            // empty fief raises the threat gradually instead of jumping to the cap.
+            float defence = Math.Max(0f, defenderStrength) + Math.Max(0f, allyWeight) * friendly;
+            defence = Math.Max(defence, MinDefenceStrength);
+            return Math.Min(hostile / defence, cap);
+        }
+
+        /// <summary>
+        /// How much a force at <paramref name="distance"/> counts: fully at the
+        /// search centre, fading linearly to nothing at the search radius. Linear
+        /// keeps the measure free of a step at the edge, so a party drifting in and
+        /// out of range does not flip the garrison multiplier.
+        /// </summary>
+        public static float ProximityWeight(float distance, float radius)
+        {
+            if (radius <= 0f || distance >= radius)
+            {
+                return 0f;
+            }
+            return distance <= 0f ? 1f : 1f - distance / radius;
         }
 
         /// <summary>
