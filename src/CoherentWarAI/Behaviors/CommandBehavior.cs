@@ -503,7 +503,7 @@ namespace CoherentWarAI.Behaviors
 
             if (previousHolderId != holder.StringId)
             {
-                WarAiLog.Write("Command", string.Format("{0} delegates {1} to {2}", kingdom.Name, domain, holder.Name));
+                WarAiLog.Write("Command", string.Format("{0} delegates {1} to {2}", kingdom.Name, domain, WarAiLog.HeroRef(holder)));
             }
             return updated;
         }
@@ -655,7 +655,7 @@ namespace CoherentWarAI.Behaviors
                     _orders[key] = order;
                     WarAiLog.Write("Command", string.Format(
                         "{0} orders {1} to patrol ({2:F0}, {3:F0}) near {4}",
-                        holder.Name, lord.Name, dispatchPosition.x, dispatchPosition.y, anchorSettlement.Name));
+                        WarAiLog.HeroRef(holder), WarAiLog.HeroRef(lord), dispatchPosition.x, dispatchPosition.y, anchorSettlement.Name));
                 }
             }
         }

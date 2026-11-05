@@ -173,9 +173,11 @@ namespace CoherentWarAI.Scenarios
         }
 
         // The ruler flag is 1 for the kingdom leader; the army model lets rulers raise the royal host.
+        // The player-clan flag is 1 for a lord of the player's clan, which the army model never constrains.
         private static string LeaderEntry(Kingdom kingdom, Hero leader)
         {
-            return leader.StringId + "|" + leader.Name + "|" + (leader == kingdom.Leader ? "1" : "0");
+            return leader.StringId + "|" + leader.Name + "|" + (leader == kingdom.Leader ? "1" : "0")
+                + "|" + (leader.Clan != null && leader.Clan == Clan.PlayerClan ? "1" : "0");
         }
     }
 }

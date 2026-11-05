@@ -30,8 +30,8 @@ A created line ends with its own `calendar=` date, taken when the event fires. T
 
 ```
 ac25a v1 date day=<d> calendar=Year <y>, <Season> <n>
-ac25a v1 day=<d> kingdom=<id>|<name> armies=<n> leaders=<heroId>|<name>|<ruler01>;...
-ac25a v1 created day=<d> kingdom=<id>|<name> leader=<heroId>|<name>|<ruler01> calendar=Year <y>, <Season> <n>
+ac25a v1 day=<d> kingdom=<id>|<name> armies=<n> leaders=<heroId>|<name>|<ruler01>|<playerClan01>;...
+ac25a v1 created day=<d> kingdom=<id>|<name> leader=<heroId>|<name>|<ruler01>|<playerClan01> calendar=Year <y>, <Season> <n>
 ```
 
 ### How the comparer judges an army (AC25a invariant)

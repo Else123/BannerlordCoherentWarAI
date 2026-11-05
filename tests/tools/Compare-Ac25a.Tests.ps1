@@ -180,14 +180,32 @@ function Remove-HarnessLine([string]$Job, [int]$Index, [string]$Pattern) {
     [IO.File]::WriteAllLines($file, [string[]]@([IO.File]::ReadAllLines($file) | Where-Object { $_ -notmatch $Pattern }))
 }
 
-# Plan F-S10-4: per seed WS, FO, FO, WS. $Values[seed-1] = @(WS1, FO1, FO2, WS2); 3 seeds by default.
-function New-Job([object[]]$Values, [double]$WsFactor = 1.0, [hashtable]$Overrides = @{}) {
+# Rewrites run $Index's CoherentWarAI.log the way a build that appends the hero StringId does: the
+# MARSHAL lines and the "delegates <Domain> to" lines of "Lord <n>" get " [id=lord_<n>]" (and the
+# foreign kingdom's Monchug " [id=lord_monchug]", the ruler's Lucon " [id=ruler_1]"), so every hero line of the rewritten log has an id.
+function Add-HeroIds([string]$Job, [int]$Index) {
+    $file = Join-Path $Job "r$Index\CoherentWarAI.log"
+    $lines = @([IO.File]::ReadAllLines($file) | ForEach-Object {
+            $_ -replace '^(\[Posture\]\s+(?:MARSHAL|attacks): Lord (\d+)) \(', '$1 [id=lord_$2] (' -replace '^(\[Command\] .+ delegates \w+ to Lord (\d+))$', '$1 [id=lord_$2]' -replace '^(\[Posture\]\s+MARSHAL: Monchug) \(', '$1 [id=lord_monchug] (' -replace '^(\[Command\] .+ delegates \w+ to Lucon)$', '$1 [id=ruler_1]'
+        })
+    [IO.File]::WriteAllLines($file, [string[]]$lines)
+}
+
+# Per-seed run layouts. The armydays arms: WS, AO, AO, WS (the default of New-Job). The CW1 job
+# since the AllOff baseline: WS, FO, AO, AO, FO, WS. A job from before it: WS, FO, FO, WS.
+$script:wsAoLayout = @('WarSails', 'AllOff', 'AllOff', 'WarSails')
+$script:cw1Layout = @('WarSails', 'FeatureOff', 'AllOff', 'AllOff', 'FeatureOff', 'WarSails')
+$script:oldLayout = @('WarSails', 'FeatureOff', 'FeatureOff', 'WarSails')
+
+# One run per $Modes entry per seed. $Values[seed-1] holds the army-days in $Modes order (default
+# @(WS1, AO1, AO2, WS2)); 3 seeds by default.
+function New-Job([object[]]$Values, [double]$WsFactor = 1.0, [hashtable]$Overrides = @{}, [string[]]$Modes = $script:wsAoLayout) {
     $job = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $job | Out-Null
-    $modes = @('WarSails', 'FeatureOff', 'FeatureOff', 'WarSails')
+    $modes = $Modes
     $index = 1
     for ($s = 0; $s -lt $Values.Count; $s++) {
-        for ($j = 0; $j -lt 4; $j++) {
+        for ($j = 0; $j -lt $modes.Count; $j++) {
             $v = [double]$Values[$s][$j]
             if ($modes[$j] -eq 'WarSails') { $v = $v * $WsFactor }
             $runArgs = @{ Job = $job; Index = $index; Seed = $s + 1; Mode = $modes[$j]; ArmyDays = [int][Math]::Round($v) }
@@ -200,9 +218,9 @@ function New-Job([object[]]$Values, [double]$WsFactor = 1.0, [hashtable]$Overrid
 }
 
 # Writes a job.json plan with runs r1..r$Count (modes as in New-Job) to $Path.
-function New-Manifest([string]$Path, [int]$Count) {
-    $modes = @('WarSails', 'FeatureOff', 'FeatureOff', 'WarSails')
-    $planned = @(1..$Count | ForEach-Object { [ordered]@{ runId = "r$_"; seed = [int][Math]::Ceiling($_ / 4); mode = $modes[($_ - 1) % 4] } })
+function New-Manifest([string]$Path, [int]$Count, [string[]]$Modes = $script:wsAoLayout) {
+    $modes = $Modes
+    $planned = @(1..$Count | ForEach-Object { [ordered]@{ runId = "r$_"; seed = [int][Math]::Ceiling($_ / $modes.Count); mode = $modes[($_ - 1) % $modes.Count] } })
     New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force | Out-Null
     [IO.File]::WriteAllText($Path, (ConvertTo-Json -InputObject ([ordered]@{ schema = 1; runs = $planned }) -Depth 4))
 }
@@ -268,7 +286,7 @@ Describe 'Compare-Ac25a' {
         $r = Invoke-Comparer (New-Job $script:noisy)
         $r.Doc.runs[0].armyDays | Should Be 20
         $r.Doc.runs[0].rulerArmyDays | Should Be 1
-        $r.ArmyDays.foMean | Should Be ([Math]::Round((18 + 22 + 33 + 27 + 14 + 11) / 6.0, 4))
+        $r.ArmyDays.aoMean | Should Be ([Math]::Round((18 + 22 + 33 + 27 + 14 + 11) / 6.0, 4))
     }
 
     It 'fails the invariant for an injected Defense-only army leader' {
@@ -526,6 +544,22 @@ Describe 'Compare-Ac25a' {
         $r.Invariant.possibleViolators | Should Be 0
     }
 
+    It 'exempts a player-clan leader (4th digest field 1) who holds Defense like a ruler' {
+        $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 1 = @{ Leaders = @('lord_pc|Player Lord|0|1'); ModLog = @('[Command] Northern Empire delegates Defense to Player Lord') } })
+        $r.Exit | Should Be 0
+        $r.Invariant.verdict | Should Be 'Passed'
+        $r.Invariant.possibleViolators | Should Be 0
+        $r.Invariant.rulersExempt | Should Be 7
+    }
+
+    It 'still judges a leader with 4th digest field 0 and an old 3-field entry as non-exempt' {
+        foreach ($entry in 'lord_pc|Player Lord|0|0', 'lord_pc|Player Lord|0') {
+            $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 1 = @{ Leaders = @($entry); ModLog = @('[Command] Northern Empire delegates Defense to Player Lord') } })
+            $r.Invariant.possibleViolators | Should Be 1
+            $r.Invariant.rulersExempt | Should Be 6
+        }
+    }
+
     It 'clears a lord appointed MARSHAL by the daily tick his army follows' {
         # Not MARSHAL at launch, appointed by the Summer 2 tick; his army comes after that tick.
         $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 1 = @{ NoOffense = @('Lord 0'); ModLog = @(Get-PostureSection 1) } })
@@ -651,7 +685,7 @@ Describe 'Compare-Ac25a' {
         $r.Invariant.verdict | Should Be 'RigError'
     }
 
-    It 'gives RigError for a missing or empty harness.log of a FeatureOff run' {
+    It 'gives RigError for a missing or empty harness.log of an AllOff run' {
         $job = New-Job $script:noisy
         Remove-Item (Join-Path $job 'r2\harness.log')
         [IO.File]::WriteAllText((Join-Path $job 'r3\harness.log'), '')
@@ -807,7 +841,7 @@ Describe 'Compare-Ac25a' {
         $r.Invariant.cleared | Should Be $r.Invariant.episodes
     }
 
-    It 'is Inconclusive when one FeatureOff run hung' {
+    It 'is Inconclusive when one AllOff run hung' {
         $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 6 = @{ Status = 'Hung' } })
         $r.Exit | Should Be 3
         $r.ArmyDays.verdict | Should Be 'Inconclusive'
@@ -862,7 +896,7 @@ Describe 'Compare-Ac25a' {
     }
 
     It 'gives the exact p of a small known case, but no Passed on zero noise' {
-        # Only seed 1 differs (WS 20/20, FO 10/10); seeds 2 and 3 are constant. Of the 6 labellings
+        # Only seed 1 differs (WS 20/20, AO 10/10); seeds 2 and 3 are constant. Of the 6 labellings
         # of seed 1, two reach |diff| = 10 and four give 0; seeds 2/3 always give 0 -> p = 72/216 = 1/3.
         $r = Invoke-Comparer (New-Job @(@(20, 10, 10, 20), @(10, 10, 10, 10), @(10, 10, 10, 10)))
         $r.ArmyDays.p | Should Be ([Math]::Round(1 / 3, 4))
@@ -887,20 +921,83 @@ Describe 'Compare-Ac25a' {
         $r.Invariant.verdict | Should Be 'Inconclusive'
     }
 
-    It 'is Inconclusive, not Passed, when the FeatureOff mean is 0' {
+    It 'is Inconclusive, not Passed, when the AllOff mean is 0' {
         $r = Invoke-Comparer (New-Job @(@(1, 0, 0, 0), @(0, 0, 0, 0), @(0, 0, 0, 0)))
         $r.ArmyDays.p | Should Be 1
         $r.ArmyDays.verdict | Should Be 'Inconclusive'
-        $r.ArmyDays.detail | Should Match 'FeatureOff mean is 0'
+        $r.ArmyDays.detail | Should Match 'AllOff mean is 0'
     }
 
     It 'is Inconclusive when the design cannot reach alpha' {
-        # One seed, 2 WS + 2 FO: 6 labellings, the smallest p is 2/6 even for total separation.
+        # One seed, 2 WS + 2 AO: 6 labellings, the smallest p is 2/6 even for total separation.
         $r = Invoke-Comparer (New-Job @(, @(40, 10, 10, 40)))
         $r.Exit | Should Be 3
         $r.ArmyDays.verdict | Should Be 'Inconclusive'
         $r.ArmyDays.minP | Should Be ([Math]::Round(2 / 6, 4))
         $r.ArmyDays.detail | Should Match 'design cannot reach alpha'
+    }
+
+    It 'links by hero StringId when the mod log carries it, with the same verdicts as by name' {
+        $job = New-Job $script:noisy 1.0 @{ 4 = @{ NoOffense = @('Lord 2'); ModLog = @('[Command] Northern Empire delegates Defense to Lord 2') } }
+        foreach ($i in 1..12) { Add-HeroIds $job $i }
+        $r = Invoke-Comparer $job
+        $r.Invariant.verdict | Should Be 'Failed'
+        @($r.Invariant.violations).Count | Should Be 1
+        $r.Invariant.violations[0] | Should Match 'r4 .*Lord 2 \[lord_2\].*never held Offense \(held Defense\)'
+        $r.Invariant.possibleViolators | Should Be 1
+        $r.Invariant.unlinked | Should Be 0
+        $r.Invariant.cleared | Should Be ($r.Invariant.episodes - 1)
+    }
+
+    It 'links two heroes sharing a name by StringId instead of warning about the name' {
+        # lord_x is the MARSHAL "Lord 2" (own id); lord_2 is not MARSHAL at all.
+        $job = New-Job $script:noisy 1.0 @{ 1 = @{ Leaders = @('lord_x|Lord 2|0'); NoOffense = @('Lord 2'); ModLog = @(Get-PostureSection 1 @('Lord 2') @('Lord 2 [id=lord_x]')) } }
+        Add-HeroIds $job 1
+        $r = Invoke-Comparer $job
+        @($r.Doc.warnings | Where-Object { $_ -match 'is shared by hero ids' }).Count | Should Be 0
+        $r.Invariant.verdict | Should Be 'Failed'
+        @($r.Invariant.violations | Where-Object { $_ -match 'Lord 2 \[lord_2\] raised an army' }).Count | Should BeGreaterThan 0
+        @($r.Invariant.ambiguousEpisodes | Where-Object { $_ -match 'Lord 2 \[lord_x\] led an army \(creation not observed\).*ambiguous: MARSHAL on' }).Count | Should Be 1
+    }
+
+    It 'judges heroes without an id ambiguous, not a violation, when the mod log mixes lines with and without [id=...]' {
+        $job = New-Job $script:noisy
+        foreach ($i in 1..12) { Add-HeroIds $job $i }
+        # Lord 3 of r1 loses the id on his MARSHAL line (as a hero logged without a StringId would).
+        $file = Join-Path $job 'r1\CoherentWarAI.log'
+        [IO.File]::WriteAllLines($file, [string[]]@([IO.File]::ReadAllLines($file) | ForEach-Object { $_ -replace '^(\[Posture\]\s+MARSHAL: Lord 3) \[id=lord_3\] \(', '$1 (' }))
+        $r = Invoke-Comparer $job
+        @($r.Invariant.violations).Count | Should Be 0
+        $r.Invariant.verdict | Should Be 'Inconclusive'
+        $r.Invariant.unlinked | Should BeGreaterThan 0
+        @($r.Invariant.ambiguousEpisodes | Where-Object { $_ -match 'Lord 3 \[lord_3\].*ambiguous: unlinked.*mixes hero lines' }).Count | Should BeGreaterThan 0
+        @($r.Doc.warnings | Where-Object { $_ -match '^r1: CoherentWarAI\.log mixes hero lines with and without \[id=' }).Count | Should Be 1
+    }
+
+    It 'links a hero whose name contains brackets or a pipe by his id' {
+        $leaders = @('lord_b|Bob [Jr]|0', 'lord_p|Pipe|Man|0|0')
+        $job = New-Job $script:noisy 1.0 @{ 1 = @{ Leaders = $leaders; ModLog = @(Get-PostureSection 1 @() @('Bob [Jr] [id=lord_b]', 'Pipe|Man [id=lord_p]')) } }
+        Add-HeroIds $job 1
+        $r = Invoke-Comparer $job
+        $r.Invariant.unlinked | Should Be 0
+        @($r.Doc.warnings | Where-Object { $_ -match 'unreadable leader entry' }).Count | Should Be 0
+        @($r.Invariant.violations | Where-Object { $_ -match 'Bob|Pipe' }).Count | Should Be 0
+        @($r.Invariant.ambiguousEpisodes | Where-Object { $_ -match 'Bob \[Jr\] \[lord_b\]' }).Count | Should Be 1
+        @($r.Invariant.ambiguousEpisodes | Where-Object { $_ -match 'Pipe\|Man \[lord_p\]' }).Count | Should Be 1
+    }
+
+    It 'warns when the digest skipped created events and keeps the verdict' {
+        $base = Invoke-Comparer (New-Job $script:noisy)
+        $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 1 = @{ Digest = @('digest done: 3 of 3 days aligned, 6 kingdom lines, 4 created events, 2 skipped (no kingdom or leader), 0 errors') } })
+        @($r.Doc.warnings | Where-Object { $_ -match '^r1: digest skipped 2 created event\(s\)' }).Count | Should Be 1
+        $r.Invariant.verdict | Should Be $base.Invariant.verdict
+        $r.Exit | Should Be $base.Exit
+        @($base.Doc.warnings | Where-Object { $_ -match 'digest skipped' }).Count | Should Be 0
+    }
+
+    It 'does not warn about skipped created events when the digest skipped none' {
+        $r = Invoke-Comparer (Copy-RealisticJob)
+        @($r.Doc.warnings | Where-Object { $_ -match 'digest skipped' }).Count | Should Be 0
     }
 
     It 'warns about an ambiguous leader name instead of judging it' {
@@ -911,26 +1008,26 @@ Describe 'Compare-Ac25a' {
 
     It 'computes noise s as the pooled within-cell standard deviation and the MDE with t(df)' {
         $r = Invoke-Comparer (New-Job $script:noisy)
-        # cells (WS,FO) per seed: (20,21)(18,22)(30,31)(33,27)(12,13)(14,11); ss = 0.5+8+0.5+18+0.5+4.5 = 32, df 6
+        # cells (WS,AO) per seed: (20,21)(18,22)(30,31)(33,27)(12,13)(14,11); ss = 0.5+8+0.5+18+0.5+4.5 = 32, df 6
         $mde = (2.447 + 0.906) * [Math]::Sqrt(32 / 6) * [Math]::Sqrt(3) / 3
         $r.ArmyDays.s | Should Be ([Math]::Round([Math]::Sqrt(32 / 6), 4))
         $r.ArmyDays.df | Should Be 6
         $r.ArmyDays.mde | Should Be ([Math]::Round($mde, 4))
         $r.ArmyDays.mdePercent | Should Be ([Math]::Round(100 * $mde / ((18 + 22 + 33 + 27 + 14 + 11) / 6.0), 4))
-        $r.ArmyDays.detail | Should Match 'MDE ~4\.5 army-days \(21 % of FO, t, df 6\)'
+        $r.ArmyDays.detail | Should Match 'MDE ~4\.5 army-days \(21 % of AO, t, df 6\)'
         @($r.Doc.warnings | Where-Object { $_ -match '^armydays: MDE' }).Count | Should Be 0
         $r.ArmyDays.detail | Should Not Match 'weak test'
     }
 
-    It 'keeps Passed but warns when the MDE is above 50 % of the FeatureOff mean' {
-        # runs per seed are WS, FO, FO, WS: both arms average 10, every cell spreads 4..16
+    It 'keeps Passed but warns when the MDE is above 50 % of the AllOff mean' {
+        # runs per seed are WS, AO, AO, WS: both arms average 10, every cell spreads 4..16
         $r = Invoke-Comparer (New-Job @(@(4, 16, 4, 16), @(6, 14, 6, 14), @(5, 15, 5, 15)))
         $r.Exit | Should Be 0
         $r.ArmyDays.verdict | Should Be 'Passed'
         ($r.ArmyDays.mdePercent -gt 50) | Should Be $true
-        @($r.Doc.warnings | Where-Object { $_ -match '^armydays: MDE ~\S+ army-days is \d+ % of FO \(above 50 %\); only large effects are detectable' }).Count | Should Be 1
+        @($r.Doc.warnings | Where-Object { $_ -match '^armydays: MDE ~\S+ army-days is \d+ % of AO \(above 50 %\); only large effects are detectable' }).Count | Should Be 1
         $r.Output | Should Match 'WARN  armydays: MDE'
-        $r.ArmyDays.detail | Should Match ' - WARN weak test: MDE above 50 % of FO'
+        $r.ArmyDays.detail | Should Match ' - WARN weak test: MDE above 50 % of AO'
     }
 
     It 'gives the same numbers under a de-DE culture' {
@@ -1000,6 +1097,102 @@ Describe 'Compare-Ac25a' {
         $r.Invariant.verdict | Should Be 'RigError'
         $r.ArmyDays.verdict | Should Be 'RigError'
         $r.ArmyDays.detail | Should Match 'job manifest .*missing'
+    }
+
+    # CW1 layout per seed WS, FO, AO, AO, FO, WS: WS and AO as in $script:noisy, FO about three times higher.
+    $script:cw1Values = @(@(20, 60, 18, 22, 66, 21), @(30, 95, 33, 27, 90, 31), @(12, 40, 14, 11, 36, 13))
+    $script:cw1AllOffRuns = @{ 3 = @{ NoModLog = $true }; 4 = @{ NoModLog = $true }; 9 = @{ NoModLog = $true }; 10 = @{ NoModLog = $true }; 15 = @{ NoModLog = $true }; 16 = @{ NoModLog = $true } }
+
+    It 'judges army-days WarSails vs AllOff in an 18-run CW1 job and reports the doctrine effect vs FeatureOff as info' {
+        $r = Invoke-Comparer (New-Job $script:cw1Values 1.0 $script:cw1AllOffRuns $script:cw1Layout)
+        $r.Exit | Should Be 0
+        @($r.Doc.runs).Count | Should Be 18
+        @($r.Doc.runs | Where-Object { $_.valid }).Count | Should Be 18
+        $r.ArmyDays.verdict | Should Be 'Passed'
+        $r.ArmyDays.permutations | Should Be 216
+        $r.ArmyDays.aoMean | Should Be ([Math]::Round((18 + 22 + 33 + 27 + 14 + 11) / 6.0, 4))
+        $r.ArmyDays.s | Should Be ([Math]::Round([Math]::Sqrt(32 / 6), 4))
+        $r.ArmyDays.detail | Should Match '^D=\S+ army-days \(\S+ % of AO 20\.8\)'
+        # The doctrine effect is info only: perfectly separated, yet the verdict stays Passed.
+        $r.ArmyDays.detail | Should Match '; doctrine effect vs FO: D=-?\d+\.\d army-days \(\S+ % of FO \d+\.\d\), p=0\.009 \(216 perms\)'
+        $r.ArmyDays.doctrine.available | Should Be $true
+        $r.ArmyDays.doctrine.p | Should Be ([Math]::Round(2 / 216, 4))
+        $r.ArmyDays.doctrine.foMean | Should Be ([Math]::Round((60 + 66 + 95 + 90 + 40 + 36) / 6.0, 4))
+        ($r.ArmyDays.doctrine.d -lt 0) | Should Be $true
+        $r.Doc.kingdoms[0].aoMean | Should Be ([Math]::Round((18 + 22 + 33 + 27 + 14 + 11) / 6.0, 4))
+        $r.Doc.kingdoms[0].foMean | Should Be ([Math]::Round((60 + 66 + 95 + 90 + 40 + 36) / 6.0, 4))
+        # AllOff runs (no mod log needed) do not leak into the WarSails-only invariant.
+        $r.Invariant.verdict | Should Be 'Passed'
+        $r.Invariant.episodes | Should Be (20 + 21 + 30 + 31 + 12 + 13)
+    }
+
+    It 'is Inconclusive for a job without AllOff runs but still reports the doctrine effect' {
+        $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{} $script:oldLayout)
+        $r.Exit | Should Be 3
+        $r.ArmyDays.verdict | Should Be 'Inconclusive'
+        $r.ArmyDays.detail | Should Match '^no AllOff baseline runs'
+        $r.ArmyDays.detail | Should Match '; doctrine effect vs FO: D=\S+ army-days .*p=\d\.\d{3} \(216 perms\)'
+        $r.ArmyDays.doctrine.permutations | Should Be 216
+        $r.Invariant.verdict | Should Be 'Passed'
+        $r.Output | Should Match 'result: invariant Passed, armydays Inconclusive -> exit 3'
+    }
+
+    It 'keeps the AllOff verdict when a FeatureOff run is unusable or missing, and drops only the doctrine info' {
+        # The hung r2 left a partial digest, including a kingdom no usable run has.
+        $job = New-Job $script:cw1Values 1.0 @{ 2 = @{ Status = 'Hung'; Digest = @('day=1 kingdom=vlandia|Vlandia armies=1 leaders=lord_v|Lord V|0') } } $script:cw1Layout
+        Remove-Item -Recurse (Join-Path $job 'r5')
+        New-Manifest (Join-Path $job 'job.json') 18 $script:cw1Layout
+        $r = Invoke-Comparer $job
+        $r.Exit | Should Be 0
+        $r.ArmyDays.verdict | Should Be 'Passed'
+        $r.ArmyDays.detail | Should Match '; doctrine effect vs FO: n/a \(.*r2: status Hung'
+        $r.ArmyDays.doctrine.available | Should Be $false
+        $r.Invariant.verdict | Should Be 'Passed'
+        # Per-kingdom rows use usable runs only: no row for Vlandia, FO mean and ruler share without r2.
+        @($r.Doc.kingdoms).Count | Should Be 1
+        $r.Doc.kingdoms[0].kingdomId | Should Be 'empire'
+        $r.Doc.kingdoms[0].foMean | Should Be ([Math]::Round((95 + 90 + 40 + 36) / 4.0, 4))
+        $r.Doc.kingdoms[0].rulerShareFo | Should Be ([Math]::Round(4 / (95 + 90 + 40 + 36 + 4.0), 4))
+        $r.Doc.kingdoms[0].rulerShareAo | Should Be ([Math]::Round(6 / (18 + 22 + 33 + 27 + 14 + 11 + 6.0), 4))
+        $r.Output | Should Match 'ruler share WS/AO/FO'
+    }
+
+    It 'keeps the AllOff verdict when only a planned FeatureOff run is missing' {
+        $job = New-Job $script:cw1Values 1.0 @{} $script:cw1Layout
+        Remove-Item -Recurse (Join-Path $job 'r5')
+        New-Manifest (Join-Path $job 'job.json') 18 $script:cw1Layout
+        $r = Invoke-Comparer $job
+        $r.Exit | Should Be 0
+        $r.ArmyDays.verdict | Should Be 'Passed'
+        $r.ArmyDays.detail | Should Match '; doctrine effect vs FO: n/a \(planned run\(s\) r5 missing\)'
+        $r.ArmyDays.doctrine.available | Should Be $false
+    }
+
+    It 'keeps the AllOff verdict when a seed has only FeatureOff runs' {
+        $job = New-Job $script:cw1Values 1.0 @{} $script:cw1Layout
+        New-Run -Job $job -Index 19 -Seed 4 -Mode 'FeatureOff' -ArmyDays 50
+        $r = Invoke-Comparer $job
+        $r.Exit | Should Be 0
+        $r.ArmyDays.verdict | Should Be 'Passed'
+        $r.ArmyDays.permutations | Should Be 216
+        $r.ArmyDays.detail | Should Match '; doctrine effect vs FO: n/a \(seed\(s\) 4 lack a WarSails or a FeatureOff run\)'
+    }
+
+    It 'makes army-days, not the invariant, Inconclusive when a planned AllOff run is missing' {
+        $job = New-Job $script:cw1Values 1.0 @{} $script:cw1Layout
+        Remove-Item -Recurse (Join-Path $job 'r3')
+        New-Manifest (Join-Path $job 'job.json') 18 $script:cw1Layout
+        $r = Invoke-Comparer $job
+        $r.Exit | Should Be 3
+        $r.ArmyDays.verdict | Should Be 'Inconclusive'
+        $r.ArmyDays.detail | Should Match '^planned run\(s\) r3 missing'
+        $r.Invariant.verdict | Should Be 'Passed'
+    }
+
+    It 'still rejects an unexpected mode' {
+        $r = Invoke-Comparer (New-Job $script:noisy 1.0 @{ 2 = @{ Mode = 'NoDlc' } })
+        $r.Doc.runs[1].reason | Should Be 'unexpected mode NoDlc'
+        $r.ArmyDays.verdict | Should Be 'Inconclusive'
     }
 
     It 'exits 1 for a missing job folder' {

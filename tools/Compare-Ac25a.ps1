@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     CW-1: judges COMMAND-SLICE-2A.md AC25a (army composition) across a test rig job of
-    WarSails and FeatureOff runs.
+    WarSails, FeatureOff and AllOff runs.
 
 .DESCRIPTION
     Reads every run folder r<N> of a job folder:
@@ -78,8 +78,9 @@
           cleared    when the leader is MARSHAL in G (by tick order) or in both G and P (fallback);
           ambiguous  (reported as WARN; any ambiguous episode makes the verdict Inconclusive) when
                        - the creation was not observed (snapshot episode): a lord already
-                         leading a host is listed as MARSHAL only while he ranks among the
-                         day's attackers, so the posture log can neither clear nor convict him;
+                         leading a host ranks first for the attack slots but is listed as
+                         MARSHAL only while the marshal quota has room, so the posture log can
+                         neither clear nor convict him;
                        - fallback only: he is MARSHAL in exactly one of G and P (the log does not
                          order the army against the posture tick of C);
                        - the MARSHAL line that would clear him is in the session-launch block and
@@ -96,10 +97,18 @@
                      digest and mod log looks the same). With the clear marker a kingdom without
                      a block on D (C) holds no Offense, so its army is judged like that of a
                      lord who is not MARSHAL - also when the kingdom has no block at all.
-        Leaders are linked to the mod log by (kingdom name, hero name); a name shared by
-        several hero ids within one kingdom and run cannot be linked and is reported as WARN
-        instead of judged. Rulers (ruler01=1) are exempt - the army model lets them raise the
-        royal host by design. The detail also reports the possible violators: non-ruler lords
+        Leaders are linked to the mod log by hero StringId when its MARSHAL/attacks and
+        "delegates" lines carry " [id=<StringId>]" after the hero name (then shared names do
+        not matter); a mod log without ids (older builds) is linked by (kingdom name, hero
+        name), and a name shared by several hero ids within one kingdom and run cannot be
+        linked and is reported as WARN instead of judged. A mod log that mixes lines with and
+        without ids is linked by id only: its heroes without an id are judged ambiguous (not a
+        violation) and the run gets a warning.
+        Rulers (ruler01=1) and player-clan leaders (optional 4th digest field playerClan01=1)
+        are exempt - the army model lets rulers raise the royal host by design and never
+        constrains the player's clan. Both still count as ordinary (non-ruler) army-days in
+        the armydays check; only this invariant exempts them. The detail also reports the
+        possible violators: non-ruler lords
         who held Defense or Naval but never Offense in a run (rulers known from the digest
         excluded). Zero possible violators means no lord was in a position to break the
         doctrine the way AC25a describes.
@@ -126,31 +135,40 @@
             posture tick of D was fully logged.
 
     coherentwarai.ac25a-armydays
+        Modes: WarSails (everything on), FeatureOff (only the marshal doctrine off) and AllOff
+        (marshal doctrine, chain of command and naval orders off - the vanilla-like baseline).
         Army-days per run = sum over the daily snapshots of armies led by non-rulers (ruler
         armies are not constrained by the doctrine in either mode). D = seed-stratified mean
-        difference WarSails - FeatureOff (mean over seeds of the per-seed arm means).
-        Two-sided exact permutation test: WarSails/FeatureOff labels are re-assigned within
+        difference WarSails - AllOff (mean over seeds of the per-seed arm means).
+        Two-sided exact permutation test: WarSails/AllOff labels are re-assigned within
         each seed only (runs of one seed are exchangeable under "no effect", runs of
         different seeds are not), every assignment is enumerated, p = share with |D*| >= |D|.
         Being exact, the test is deterministic; no random seed exists.
         Reported alongside: noise s (pooled standard deviation of runs within one seed and
         mode) and a minimum detectable effect MDE = (t(0.975, df) + t(0.80, df)) * SE(D)
         (alpha 0.05 two-sided, power 0.8, df = pooled within-cell degrees of freedom; above
-        df 30 the normal approximation 1.960 + 0.842), in army-days and as % of the FeatureOff
+        df 30 the normal approximation 1.960 + 0.842), in army-days and as % of the AllOff
         mean (mdePercent). The MDE never changes the verdict; a Passed verdict with an MDE
-        above 50 % of the FeatureOff mean adds a WARN line (only large effects are detectable)
+        above 50 % of the AllOff mean adds a WARN line (only large effects are detectable)
         and "WARN weak test" to its detail.
-        Verdict, in this order: RigError when any run has a rig error; Inconclusive when a run
-        is unusable, a planned run is missing or a seed lacks one arm; Inconclusive when the
-        smallest p the realised design can produce (2 / assignments when every seed has as
-        many WarSails as FeatureOff runs, else 1 / assignments) is not below 0.05 ("design
+        Verdict, in this order: RigError when any run has a rig error; Inconclusive when the
+        job has no AllOff run, planned or present ("no AllOff baseline runs": a job from before
+        that mode); Inconclusive when a WarSails, AllOff or unknown-mode run is unusable, such
+        a planned run is missing or a seed of the WarSails/AllOff runs lacks one of the two; Inconclusive when
+        the smallest p the realised design can produce (2 / assignments when every seed has as
+        many WarSails as AllOff runs, else 1 / assignments) is not below 0.05 ("design
         cannot reach alpha"); Failed when p < 0.05; Inconclusive when the data cannot support
-        "no difference": no non-ruler army-days in any run, a FeatureOff mean of 0, or an MDE
+        "no difference": no non-ruler army-days in any run, an AllOff mean of 0, or an MDE
         that is not computable (noise s is 0 or undefined); else Passed.
+        Doctrine effect (info, never a verdict): the same statistic for WarSails - FeatureOff,
+        appended to the detail ("; doctrine effect vs FO: D=..., p=...") and as the object
+        "doctrine" in the JSON. It is n/a (with the reason) when there is no FeatureOff run, a
+        WarSails or FeatureOff run is unusable or missing, or a seed lacks one of the two arms;
+        an unusable or missing FeatureOff run affects only this info, not the verdict.
 
     A run is usable when run-result.json is readable with an integer seed and status
-    Completed, its coherentwarai.ac25a-digest scenario entry is Passed, the mode is WarSails
-    or FeatureOff, the digest has at most one line per (day, kingdom) and covers exactly
+    Completed, its coherentwarai.ac25a-digest scenario entry is Passed, the mode is WarSails,
+    FeatureOff or AllOff, the digest has at most one line per (day, kingdom) and covers exactly
     daysRequested consecutive days starting the day after its start date line (the scenario
     may start later than day 0, so the digest's own coverage is compared, not daysReached).
     A run has a rig error (missing or broken artifact) when run-result.json is missing, not
@@ -165,8 +183,9 @@
     in both details say so. A given or found plan that is missing or not readable is a rig
     error for both verdicts.
 
-    Per-kingdom rows (army-days per arm, s, ruler share of all army-days) are info only,
-    keyed by kingdom id.
+    Per-kingdom rows (mean army-days of WarSails, AllOff and FeatureOff, the WarSails - AllOff
+    difference and its s, ruler share of all army-days per arm) are info only, keyed by kingdom
+    id, and use usable runs only.
 
     Output: one console line per verdict plus info/FAIL/WARN lines and a closing summary
     line, and the same values as UTF-8 JSON (no BOM) in -ResultPath. Exit code (same
@@ -202,7 +221,10 @@ Set-StrictMode -Version 2
 $ErrorActionPreference = 'Stop'
 
 $Alpha = 0.05
-# A Passed armydays verdict with an MDE above this share of the FeatureOff mean gets a WARN.
+# Run modes of a CW-1 job: WarSails (all on), FeatureOff (marshal doctrine off only) and AllOff
+# (doctrine, chain of command and naval orders off - the armydays baseline).
+$KnownModes = @('WarSails', 'FeatureOff', 'AllOff')
+# A Passed armydays verdict with an MDE above this share of the AllOff mean gets a WARN.
 $MdeWarnPercent = 50
 # Student t quantiles t(0.975, df) and t(0.80, df) for df 1..30 (two-sided alpha 0.05, power 0.8).
 $TQuantile975 = @(12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228, 2.201, 2.179, 2.160, 2.145, 2.131,
@@ -221,14 +243,18 @@ $dayPattern = '\bac25a v1 day=(\d+) kingdom=([^|]*)\|(.+?) armies=(\d+) leaders=
 $createdPattern = '\bac25a v1 created day=(\d+) kingdom=([^|]*)\|(.+?) leader=(.*?)(?: calendar=(.+))?$'
 # The rig harness's own line, written from inside the daily-tick dispatch: "<seconds> DailyTick <n> done (hours=...)".
 $dailyTickPattern = '^(?:\S+ )?DailyTick (\d+) done\b'
-$leaderPattern = '^([^|]*)\|(.*)\|([01])$'
+# The 4th field (player-clan flag) is optional: digests written before it existed have three.
+$leaderPattern = '^([^|]*)\|(.*?)\|([01])(?:\|([01]))?$'
 $calendarPattern = '^Year (\d+), (\w+) (\d+)$'
 $sectionHeaderPattern = '^=== (Year \d+, \w+ \d+) - (.*) ===$'
 $postureSection = 'war posture'
-$delegatesPattern = '^\[Command\] (.+) delegates (Naval|Defense|Offense) to (.+)$'
+# The hero name may be followed by " [id=<StringId>]" (builds that log the hero id); the id links
+# the line to the digest hero, the name is the fallback for older logs.
+$delegatesPattern = '^\[Command\] (.+) delegates (Naval|Defense|Offense) to (.+?)(?: \[id=([^\]]+)\])?$'
 # Only the head of the block line: the threat share after it is culture-formatted ({3:P0}).
 $kingdomHeaderPattern = '^\[Posture\] (.+): \d+ parties, '
-$postureNamePattern = '^\[Posture\]\s+(MARSHAL|attacks): (.+?) \(strength'
+$postureNamePattern = '^\[Posture\]\s+(MARSHAL|attacks): (.+?)(?: \[id=([^\]]+)\])? \(strength'
+$digestDonePattern = '\bdigest done: .*?, (\d+) skipped \('
 # Written by builds whose CommandBehavior keeps the session-launch Offense holder set.
 $launchMarkerPattern = '^\[Command\] Offense holders from session launch: \d+ kingdom\(s\)$'
 # Written by builds whose WarPostureBehavior clears every Offense holder set at the start of each
@@ -250,7 +276,7 @@ function ConvertTo-Leader([string]$Text, [int]$Day, [string]$KingdomId, [string]
         return $null
     }
     [PSCustomObject]@{
-        HeroId = $Matches[1]; Name = $Matches[2]; Ruler = ($Matches[3] -eq '1')
+        HeroId = $Matches[1]; Name = $Matches[2]; Ruler = ($Matches[3] -eq '1'); PlayerClan = ($Matches[4] -eq '1')
         KingdomId = $KingdomId; Kingdom = $KingdomName; Day = $Day; Created = $Created
         Calendar = -1  # date key of a created line's own calendar= field, -1 when absent
         Tick = -1      # number of the last "DailyTick <n> done" line before this line, -1 when none
@@ -326,6 +352,11 @@ function Read-Digest([string]$Path, [string]$RunName) {
                 }
             }
         }
+        elseif ($line -match $digestDonePattern) {
+            if ([int]$Matches[1] -gt 0) {
+                [void]$script:warnings.Add("$RunName`: digest skipped $($Matches[1]) created event(s) (no kingdom or leader); those armies are seen only in the daily snapshots, as 'creation not observed'")
+            }
+        }
         elseif ($line -match $createdPattern) {
             $entry = $Matches[4]
             $calendarText = $Matches[5]
@@ -363,6 +394,8 @@ function Read-Digest([string]$Path, [string]$RunName) {
 #                       names); each block is one posture tick's Offense holder set of that kingdom
 #   OffenseDelegations  kingdom -> "delegates Offense" lines in log order (Date, Name)
 #   OffenseDates        "<kingdom>|<hero>" -> dates of his MARSHAL and Offense delegation lines
+#   HasIds              the log carries " [id=<StringId>]" on its hero lines: heroes are then
+#                       identified by id (the <hero> above, and the Marshals / Name entries), else by name
 function Read-ModLog([string]$Path, [string]$RunName) {
     $held = @{}
     $postureDates = New-Object 'System.Collections.Generic.SortedSet[int]'
@@ -374,6 +407,8 @@ function Read-ModLog([string]$Path, [string]$RunName) {
     $offenseDelegations = @{}
     $offenseDates = @{}
     $delegations = 0
+    $hasIds = $false
+    $plainHeroLines = 0
     $inPosture = $false
     $currentSection = $null
     $currentKingdom = $null
@@ -409,7 +444,9 @@ function Read-ModLog([string]$Path, [string]$RunName) {
         }
         if ($line -match $delegatesPattern) {
             $delegations++
-            $key = $Matches[1] + '|' + $Matches[3]
+            $hero = $Matches[3]
+            if ($Matches[4]) { $hero = $Matches[4]; $hasIds = $true } else { $plainHeroLines++ }
+            $key = $Matches[1] + '|' + $hero
             $role = $Matches[2]
             if ($role -eq 'Offense') {
                 if ($currentDate -lt 0) {
@@ -418,16 +455,18 @@ function Read-ModLog([string]$Path, [string]$RunName) {
                 else {
                     $isOffense = $true
                     if (-not $offenseDelegations.ContainsKey($Matches[1])) { $offenseDelegations[$Matches[1]] = New-Object System.Collections.ArrayList }
-                    [void]$offenseDelegations[$Matches[1]].Add([PSCustomObject]@{ Date = $currentDate; Name = $Matches[3] })
+                    [void]$offenseDelegations[$Matches[1]].Add([PSCustomObject]@{ Date = $currentDate; Name = $hero })
                 }
             }
         }
         elseif ($null -ne $currentKingdom -and $line -match $postureNamePattern) {
-            $key = $currentKingdom + '|' + $Matches[2]
+            $hero = $Matches[2]
+            if ($Matches[3]) { $hero = $Matches[3]; $hasIds = $true } else { $plainHeroLines++ }
+            $key = $currentKingdom + '|' + $hero
             if ($Matches[1] -eq 'MARSHAL') {
                 $role = 'Offense'
                 $isOffense = $true
-                [void]$currentBlock.Marshals.Add($Matches[2])
+                [void]$currentBlock.Marshals.Add($hero)
             }
             else { $role = 'Attack' }
         }
@@ -443,9 +482,15 @@ function Read-ModLog([string]$Path, [string]$RunName) {
     if ($postureDates.Count -gt 0 -and $blockCount -eq 0) {
         [void]$script:warnings.Add("$RunName`: CoherentWarAI.log has $($postureDates.Count) war posture section(s) but no parsable '[Posture] <kingdom>: <n> parties, ' block line; no MARSHAL line can clear anyone")
     }
+    # Hero lines with and without an id in one log (a hero logged as " [id=]" counts as without):
+    # the id mode links by id only, so heroes whose lines have none cannot be linked.
+    $mixedIds = $hasIds -and $plainHeroLines -gt 0
+    if ($mixedIds) {
+        [void]$script:warnings.Add("$RunName`: CoherentWarAI.log mixes hero lines with and without [id=...] ($plainHeroLines without); heroes are linked by id only, so heroes without an id on their lines cannot be linked and are judged ambiguous")
+    }
     [PSCustomObject]@{
         Held = $held; PostureDates = @($postureDates); PostureSections = @($postureSections); LaunchMarker = $launchMarker; ClearMarker = $clearMarker; Blocks = $blocks
-        OffenseDelegations = $offenseDelegations; OffenseDates = $offenseDates; Delegations = $delegations
+        OffenseDelegations = $offenseDelegations; OffenseDates = $offenseDates; Delegations = $delegations; HasIds = $hasIds; MixedIds = $mixedIds
     }
 }
 
@@ -549,7 +594,7 @@ function Get-EpisodeJudgement($ModLog, [string]$Kingdom, [string]$Name, [int]$Da
 
     if (-not $Observed) {
         if ($inG -or $inP) { return New-Judgement 'Ambiguous' "MARSHAL on $(if ($inG) { $gText } else { $pText }), but the creation was not observed and the line may be his own host" }
-        return New-Judgement 'Ambiguous' 'creation not observed; a lord already leading a host is listed as MARSHAL only while he ranks among the attackers'
+        return New-Judgement 'Ambiguous' 'creation not observed; a lord already leading a host ranks first for the attack slots but is listed as MARSHAL only while the marshal quota has room'
     }
     # Builds without the launch marker wipe the session-launch holder set right after it is
     # published, so a MARSHAL line of the launch posture neither clears nor convicts.
@@ -571,6 +616,9 @@ function Get-EpisodeJudgement($ModLog, [string]$Kingdom, [string]$Name, [int]$Da
     $offense = @(if ($ModLog.OffenseDates.ContainsKey($key)) { $ModLog.OffenseDates[$key] })
     $earlier = @($offense | Where-Object { $_ -lt $Date })
     $notHeld = if ($p -eq $g) { "not MARSHAL on $gText" } else { "MARSHAL neither on $pText nor on $gText" }
+    if ($ModLog.MixedIds -and -not $ModLog.Held.ContainsKey($key)) {
+        return New-Judgement 'Ambiguous' 'unlinked: no entry in the mod log, which mixes hero lines with and without [id=...]'
+    }
     $why = if (-not $ModLog.Held.ContainsKey($key)) { 'unlinked: no entry in the mod log' }
     elseif ($offense.Count -eq 0) { "never held Offense (held $((@($ModLog.Held[$key]) | Sort-Object) -join '+'))" }
     elseif ($earlier.Count -eq 0) { "Offense only from $(Format-DateKey $offense[0]), after the army" }
@@ -628,16 +676,16 @@ function Get-StratumDiffs([double[]]$Values, [int]$WsCount) {
     , $diffs
 }
 
-# Exact two-sided stratified permutation test. Strata: objects with Ws and Fo value arrays.
+# Exact two-sided stratified permutation test. Strata: objects with Ws and Base value arrays.
 function Invoke-StratifiedPermutationTest($Strata) {
     $observed = 0.0
     $sums = New-Object 'System.Collections.Generic.List[double]'
     $sums.Add(0.0)
     foreach ($stratum in $Strata) {
         $ws = [double[]]@($stratum.Ws)
-        $fo = [double[]]@($stratum.Fo)
-        $observed += (Get-Mean $ws) - (Get-Mean $fo)
-        $diffs = Get-StratumDiffs ([double[]]($ws + $fo)) $ws.Count
+        $base = [double[]]@($stratum.Base)
+        $observed += (Get-Mean $ws) - (Get-Mean $base)
+        $diffs = Get-StratumDiffs ([double[]]($ws + $base)) $ws.Count
         $next = New-Object 'System.Collections.Generic.List[double]'
         foreach ($s in $sums) { foreach ($d in $diffs) { $next.Add($s + $d) } }
         $sums = $next
@@ -652,31 +700,34 @@ function Invoke-StratifiedPermutationTest($Strata) {
     [PSCustomObject]@{ D = $dObs; P = $extreme / $sums.Count; Permutations = $sums.Count; Extreme = $extreme }
 }
 
-# Seed-stratified comparison of one metric: D, p, smallest attainable p, noise s and MDE.
-function Measure-Arms($Runs, [scriptblock]$Metric) {
+# Seed-stratified comparison of one metric, WarSails vs the runs of $BaseMode: D, p, smallest
+# attainable p, noise s and MDE. Runs of other modes are ignored; every seed with a run of
+# either arm must have both (the callers check that first).
+function Measure-Arms($Runs, [string]$BaseMode, [scriptblock]$Metric) {
+    $armRuns = @($Runs | Where-Object { $_.Mode -eq 'WarSails' -or $_.Mode -eq $BaseMode })
     $strata = New-Object System.Collections.ArrayList
     $cells = New-Object System.Collections.ArrayList
     $varSum = 0.0
     $assignments = 1.0
     $balanced = $true
-    $seeds = @($Runs | ForEach-Object { $_.Seed } | Sort-Object -Unique)
+    $seeds = @($armRuns | ForEach-Object { $_.Seed } | Sort-Object -Unique)
     foreach ($seed in $seeds) {
-        $ws = [double[]]@($Runs | Where-Object { $_.Seed -eq $seed -and $_.Mode -eq 'WarSails' } | ForEach-Object $Metric)
-        $fo = [double[]]@($Runs | Where-Object { $_.Seed -eq $seed -and $_.Mode -eq 'FeatureOff' } | ForEach-Object $Metric)
-        [void]$strata.Add([PSCustomObject]@{ Ws = $ws; Fo = $fo })
+        $ws = [double[]]@($armRuns | Where-Object { $_.Seed -eq $seed -and $_.Mode -eq 'WarSails' } | ForEach-Object $Metric)
+        $base = [double[]]@($armRuns | Where-Object { $_.Seed -eq $seed -and $_.Mode -eq $BaseMode } | ForEach-Object $Metric)
+        [void]$strata.Add([PSCustomObject]@{ Ws = $ws; Base = $base })
         [void]$cells.Add($ws)
-        [void]$cells.Add($fo)
-        $varSum += 1.0 / $ws.Count + 1.0 / $fo.Count
-        $assignments *= Get-Binomial ($ws.Count + $fo.Count) $ws.Count
-        if ($ws.Count -ne $fo.Count) { $balanced = $false }
+        [void]$cells.Add($base)
+        $varSum += 1.0 / $ws.Count + 1.0 / $base.Count
+        $assignments *= Get-Binomial ($ws.Count + $base.Count) $ws.Count
+        if ($ws.Count -ne $base.Count) { $balanced = $false }
     }
     # Mirroring every label maps an assignment to one with -D only when each seed is balanced.
     $minP = $(if ($balanced) { 2.0 } else { 1.0 }) / $assignments
     $pooled = Get-PooledSd $cells
     $test = Invoke-StratifiedPermutationTest $strata
-    $wsAll = [double[]]@($Runs | Where-Object { $_.Mode -eq 'WarSails' } | ForEach-Object $Metric)
-    $foAll = [double[]]@($Runs | Where-Object { $_.Mode -eq 'FeatureOff' } | ForEach-Object $Metric)
-    $foMean = Get-Mean $foAll
+    $wsAll = [double[]]@($armRuns | Where-Object { $_.Mode -eq 'WarSails' } | ForEach-Object $Metric)
+    $baseAll = [double[]]@($armRuns | Where-Object { $_.Mode -eq $BaseMode } | ForEach-Object $Metric)
+    $baseMean = Get-Mean $baseAll
     $mde = (Get-MdeFactor $pooled.Df) * $pooled.S * [Math]::Sqrt($varSum) / $strata.Count
     [PSCustomObject]@{
         D            = $test.D
@@ -686,11 +737,20 @@ function Measure-Arms($Runs, [scriptblock]$Metric) {
         S            = $pooled.S
         Df           = $pooled.Df
         Mde          = $mde
-        MdePercent   = if ($foMean -eq 0) { [double]::NaN } else { 100.0 * $mde / $foMean }
+        MdePercent   = if ($baseMean -eq 0) { [double]::NaN } else { 100.0 * $mde / $baseMean }
         WsMean       = Get-Mean $wsAll
-        FoMean       = $foMean
-        Total        = ($wsAll + $foAll | Measure-Object -Sum).Sum
+        BaseMean     = $baseMean
+        Total        = ($wsAll + $baseAll | Measure-Object -Sum).Sum
     }
+}
+
+# Seeds (of all runs) that lack a WarSails or a $BaseMode run.
+function Get-UnbalancedSeeds($Runs, [string]$BaseMode) {
+    @($Runs | ForEach-Object { $_.Seed } | Sort-Object -Unique | Where-Object {
+            $seed = $_
+            @($Runs | Where-Object { $_.Seed -eq $seed -and $_.Mode -eq 'WarSails' }).Count -eq 0 -or
+            @($Runs | Where-Object { $_.Seed -eq $seed -and $_.Mode -eq $BaseMode }).Count -eq 0
+        })
 }
 
 function Format-Number([double]$Value, [string]$Format = '0.0') {
@@ -785,7 +845,7 @@ function Get-PostureGaps($Digest, $ModLog, [int]$StartDay) {
     $needLaunch = $false
     $dates = New-Object 'System.Collections.Generic.SortedSet[int]'
     foreach ($leader in $Digest.Leaders) {
-        if ($leader.Ruler) { continue }
+        if ($leader.Ruler -or $leader.PlayerClan) { continue }
         if (-not $leader.Created) { [void]$dates.Add([int]$Digest.Dates[$leader.Day]) }
         elseif (-not $tickOrder) { [void]$dates.Add($(if ($leader.Calendar -ge 0) { $leader.Calendar } else { [int]$Digest.Dates[$leader.Day] })) }
         elseif ($leader.Tick -lt 0) { $needLaunch = $true }
@@ -871,7 +931,7 @@ function Read-Run($Run, [string]$Folder) {
     $undated = @(@($expectedDays) + $leaderDays | Sort-Object -Unique |
         Where-Object { -not $digest.Dates.ContainsKey([int]$_) })
 
-    if ($Run.Mode -ne 'WarSails' -and $Run.Mode -ne 'FeatureOff') { $Run.Reason = "unexpected mode $($Run.Mode)" }
+    if ($Run.Mode -notin $KnownModes) { $Run.Reason = "unexpected mode $($Run.Mode)" }
     elseif ($scenarioStatus -eq '') { $Run.Reason = "run-result.json has no $DigestScenario scenario entry" }
     elseif ($scenarioStatus -ne 'Passed') { $Run.Reason = "scenario $DigestScenario $scenarioStatus" }
     elseif ($digest.Duplicates.Count -gt 0) { $Run.Reason = "digest repeats (day, kingdom) line(s): $($digest.Duplicates -join ', ')" }
@@ -959,6 +1019,7 @@ foreach ($run in $wsValid) {
         [void]$warnings.Add("$($run.Name): harness.log has no 'DailyTick <n> done' line, tick order unavailable; armies are judged by the calendar date of their created line against the two posture blocks that can have governed it")
     }
     # Hero ids per (kingdom, name) in this run: more than one id means the name cannot be linked.
+    # A mod log with ids links by id (exact, shared names do not matter); one without links by name.
     $idsByName = @{}
     $rulerNames = New-Object 'System.Collections.Generic.HashSet[string]'
     $sharedNameWarned = New-Object 'System.Collections.Generic.HashSet[string]'
@@ -966,7 +1027,7 @@ foreach ($run in $wsValid) {
         $key = $leader.Kingdom + '|' + $leader.Name
         if (-not $idsByName.ContainsKey($key)) { $idsByName[$key] = New-Object 'System.Collections.Generic.HashSet[string]' }
         [void]$idsByName[$key].Add($leader.HeroId)
-        if ($leader.Ruler) { [void]$rulerNames.Add($key) }
+        if ($leader.Ruler -or $leader.PlayerClan) { [void]$rulerNames.Add($key); [void]$rulerNames.Add($leader.Kingdom + '|' + $leader.HeroId) }
     }
     foreach ($key in $modLog.Held.Keys) {
         $held = $modLog.Held[$key]
@@ -976,7 +1037,7 @@ foreach ($run in $wsValid) {
     # Episodes per hero: every created event, plus the first snapshot not preceded by one.
     $byHero = @{}
     foreach ($leader in $run.Leaders) {
-        if ($leader.Ruler) { [void]$rulersExempt.Add($run.Name + '|' + $leader.HeroId); continue }
+        if ($leader.Ruler -or $leader.PlayerClan) { [void]$rulersExempt.Add($run.Name + '|' + $leader.HeroId); continue }
         $heroKey = $leader.KingdomId + '|' + $leader.HeroId
         if (-not $byHero.ContainsKey($heroKey)) { $byHero[$heroKey] = New-Object System.Collections.ArrayList }
         [void]$byHero[$heroKey].Add($leader)
@@ -984,11 +1045,14 @@ foreach ($run in $wsValid) {
     foreach ($heroKey in @($byHero.Keys | Sort-Object)) {
         $appearances = @($byHero[$heroKey])
         $first = $appearances[0]
-        $key = $first.Kingdom + '|' + $first.Name
-        if ($idsByName[$key].Count -gt 1) {
+        $nameKey = $first.Kingdom + '|' + $first.Name
+        if ($idsByName[$nameKey].Count -gt 1 -and -not $modLog.HasIds) {
+            $key = $nameKey
             if ($sharedNameWarned.Add($key)) { [void]$warnings.Add("$($run.Name) $($first.Kingdom): name '$($first.Name)' is shared by hero ids $((@($idsByName[$key]) | Sort-Object) -join ', '); not linked to the mod log") }
             continue
         }
+        $linkName = if ($modLog.HasIds) { $first.HeroId } else { $first.Name }
+        $key = $first.Kingdom + '|' + $linkName
         # One episode per governing posture tick: by tick order the daily tick the created line
         # follows (before the first one: the session launch), else the created calendar date
         # (the line's own calendar= field, else its day's date line).
@@ -1023,7 +1087,7 @@ foreach ($run in $wsValid) {
             $judgedEpisodes++
             if (-not $episode.Observed) { $unobservedEpisodes++ }
             $date = $episode.Date
-            $judgement = Get-EpisodeJudgement $modLog $first.Kingdom $first.Name $date $episode.Observed $episode.Rule
+            $judgement = Get-EpisodeJudgement $modLog $first.Kingdom $linkName $date $episode.Observed $episode.Rule
             if ($judgement.Outcome -eq 'Cleared') { $clearedEpisodes++; continue }
             $what = if ($episode.Observed) { 'raised an army' } else { 'led an army (creation not observed)' }
             $line = "$($run.Name) (seed $($run.Seed)) $($first.Kingdom): $($first.Name) [$($first.HeroId)] $what on day $($episode.Day) ($(Format-DateKey $date)); "
@@ -1038,7 +1102,8 @@ foreach ($run in $wsValid) {
 foreach ($row in $ambiguousEpisodes) { [void]$warnings.Add($row) }
 
 $invariantDetail = "$($violations.Count) violations, $($ambiguousEpisodes.Count) ambiguous, $clearedEpisodes cleared ($($wsValid.Count) WarSails runs, $($judgedLeaders.Count) non-ruler leaders in $judgedEpisodes army episodes, $unobservedEpisodes with creation not observed, $($unlinked.Count) unlinked, $possibleViolators possible violators, $($rulersExempt.Count) rulers exempt)"
-$missingWs = @($missingRuns | Where-Object { $expectedRuns[$_] -ne 'FeatureOff' })
+# Planned WarSails runs, or runs planned without a mode: the invariant reads WarSails runs only.
+$missingWs = @($missingRuns | Where-Object { $expectedRuns[$_] -ne 'FeatureOff' -and $expectedRuns[$_] -ne 'AllOff' })
 $wsRigErrors = @($rigErrorRuns | Where-Object { $_.Mode -eq 'WarSails' -or $null -eq $_.Mode })
 if ($violations.Count -gt 0) { $invariantVerdict = 'Failed' }
 elseif ($plan.Error) { $invariantVerdict = 'RigError'; $invariantDetail += " - $($plan.Error)" }
@@ -1057,14 +1122,15 @@ else { $invariantVerdict = 'Passed' }
 $invariantDetail += $planNote
 
 # ---------------------------------------------------------------------------
-# Verdict 2: army-days, seed-stratified exact permutation test.
+# Verdict 2: army-days WarSails vs AllOff, seed-stratified exact permutation test.
+# FeatureOff runs feed only the doctrine info below: an unusable or missing FeatureOff run does
+# not block this verdict (a rig error in any run still does - the job's artifacts are broken).
 # ---------------------------------------------------------------------------
 $armyStats = $null
-$unbalancedSeeds = @($runs | ForEach-Object { $_.Seed } | Sort-Object -Unique | Where-Object {
-        $seed = $_
-        @($runs | Where-Object { $_.Seed -eq $seed -and $_.Mode -eq 'WarSails' }).Count -eq 0 -or
-        @($runs | Where-Object { $_.Seed -eq $seed -and $_.Mode -eq 'FeatureOff' }).Count -eq 0
-    })
+$armyInvalid = @($invalid | Where-Object { $_.Mode -ne 'FeatureOff' })
+$armyMissing = @($missingRuns | Where-Object { $expectedRuns[$_] -ne 'FeatureOff' })
+$hasAllOff = @($runs | Where-Object { $_.Mode -eq 'AllOff' }).Count -gt 0 -or @($expectedRuns.Values | Where-Object { $_ -eq 'AllOff' }).Count -gt 0
+$unbalancedSeeds = @(Get-UnbalancedSeeds @($runs | Where-Object { $_.Mode -eq 'WarSails' -or $_.Mode -eq 'AllOff' }) 'AllOff')
 if ($plan.Error) {
     $armyVerdict = 'RigError'
     $armyDetail = $plan.Error
@@ -1073,63 +1139,95 @@ elseif ($rigErrorRuns.Count -gt 0) {
     $armyVerdict = 'RigError'
     $armyDetail = "rig error in $($rigErrorRuns.Count) of $($runs.Count) runs ($((@($rigErrorRuns | ForEach-Object { $_.Name + ': ' + $_.Reason })) -join '; '))"
 }
-elseif ($invalid.Count -gt 0) {
+elseif (-not $hasAllOff) {
     $armyVerdict = 'Inconclusive'
-    $armyDetail = "$($invalid.Count) of $($runs.Count) runs not usable ($((@($invalid | ForEach-Object { $_.Name + ': ' + $_.Reason })) -join '; '))"
+    $armyDetail = 'no AllOff baseline runs (army-days are judged WarSails vs AllOff)'
 }
-elseif ($missingRuns.Count -gt 0) {
+elseif ($armyInvalid.Count -gt 0) {
     $armyVerdict = 'Inconclusive'
-    $armyDetail = "planned run(s) $($missingRuns -join ', ') missing"
+    $armyDetail = "$($armyInvalid.Count) of $($runs.Count) runs not usable ($((@($armyInvalid | ForEach-Object { $_.Name + ': ' + $_.Reason })) -join '; '))"
+}
+elseif ($armyMissing.Count -gt 0) {
+    $armyVerdict = 'Inconclusive'
+    $armyDetail = "planned run(s) $($armyMissing -join ', ') missing"
 }
 elseif ($unbalancedSeeds.Count -gt 0) {
     $armyVerdict = 'Inconclusive'
-    $armyDetail = "seed(s) $($unbalancedSeeds -join ', ') lack a WarSails or a FeatureOff run"
+    $armyDetail = "seed(s) $($unbalancedSeeds -join ', ') lack a WarSails or an AllOff run"
 }
 else {
-    $armyStats = Measure-Arms $runs { $_.ArmyDays }
+    $armyStats = Measure-Arms $runs 'AllOff' { $_.ArmyDays }
     $mdeLabel = if ($armyStats.Df -gt $TQuantile975.Count) { 'normal approx' } else { "t, df $($armyStats.Df)" }
-    $armyDetail = ('D={0} army-days ({1} of FO {2}), noise s={3}, p={4} ({5} perms, min p {6}), MDE ~{7} army-days ({8} of FO, {9})' -f
-        (Format-Number $armyStats.D), (Format-Percent $armyStats.D $armyStats.FoMean), (Format-Number $armyStats.FoMean),
+    $armyDetail = ('D={0} army-days ({1} of AO {2}), noise s={3}, p={4} ({5} perms, min p {6}), MDE ~{7} army-days ({8} of AO, {9})' -f
+        (Format-Number $armyStats.D), (Format-Percent $armyStats.D $armyStats.BaseMean), (Format-Number $armyStats.BaseMean),
         (Format-Number $armyStats.S), (Format-Number $armyStats.P '0.000'), $armyStats.Permutations,
-        (Format-Number $armyStats.MinP '0.000'), (Format-Number $armyStats.Mde), (Format-Percent $armyStats.Mde $armyStats.FoMean), $mdeLabel)
+        (Format-Number $armyStats.MinP '0.000'), (Format-Number $armyStats.Mde), (Format-Percent $armyStats.Mde $armyStats.BaseMean), $mdeLabel)
     if ($armyStats.MinP -ge $Alpha) { $armyVerdict = 'Inconclusive'; $armyDetail += " - design cannot reach alpha $Alpha" }
     elseif ($armyStats.P -lt $Alpha) { $armyVerdict = 'Failed' }
     elseif ($armyStats.Total -eq 0) { $armyVerdict = 'Inconclusive'; $armyDetail += ' - no non-ruler army-days in any run' }
-    elseif ($armyStats.FoMean -eq 0) { $armyVerdict = 'Inconclusive'; $armyDetail += ' - FeatureOff mean is 0, no reference level' }
+    elseif ($armyStats.BaseMean -eq 0) { $armyVerdict = 'Inconclusive'; $armyDetail += ' - AllOff mean is 0, no reference level' }
     elseif ([double]::IsNaN($armyStats.Mde) -or $armyStats.S -eq 0) { $armyVerdict = 'Inconclusive'; $armyDetail += ' - MDE not computable (noise s is 0 or undefined)' }
     else {
         $armyVerdict = 'Passed'
         if ($armyStats.MdePercent -gt $MdeWarnPercent) {
-            [void]$warnings.Add(('armydays: MDE ~{0} army-days is {1} of FO (above {2} %); only large effects are detectable, more seeds give a stronger test' -f
-                (Format-Number $armyStats.Mde), (Format-Percent $armyStats.Mde $armyStats.FoMean), $MdeWarnPercent))
+            [void]$warnings.Add(('armydays: MDE ~{0} army-days is {1} of AO (above {2} %); only large effects are detectable, more seeds give a stronger test' -f
+                (Format-Number $armyStats.Mde), (Format-Percent $armyStats.Mde $armyStats.BaseMean), $MdeWarnPercent))
             # The rig shows only the detail of a job check, so the warning is repeated there.
-            $armyDetail += " - WARN weak test: MDE above $MdeWarnPercent % of FO"
+            $armyDetail += " - WARN weak test: MDE above $MdeWarnPercent % of AO"
         }
     }
 }
+
+# ---------------------------------------------------------------------------
+# Info, no verdict: the doctrine effect, army-days WarSails vs FeatureOff (only the marshal
+# doctrine off), by the same statistic. Computed only from usable runs of both arms on every seed.
+# ---------------------------------------------------------------------------
+$doctrineStats = $null
+$doctrineRuns = @($runs | Where-Object { $_.Mode -eq 'WarSails' -or $_.Mode -eq 'FeatureOff' })
+$doctrineInvalid = @($doctrineRuns | Where-Object { -not $_.Valid })
+$doctrineMissing = @($missingRuns | Where-Object { $expectedRuns[$_] -ne 'AllOff' })
+$doctrineUnbalanced = @(Get-UnbalancedSeeds $doctrineRuns 'FeatureOff')
+$doctrineReason = $null
+if ($plan.Error) { $doctrineReason = $plan.Error }
+elseif (@($doctrineRuns | Where-Object { $_.Mode -eq 'FeatureOff' }).Count -eq 0) { $doctrineReason = 'no FeatureOff runs' }
+elseif (@($runs | Where-Object { $null -eq $_.Mode }).Count -gt 0) { $doctrineReason = 'a run of unknown mode' }
+elseif ($doctrineInvalid.Count -gt 0) { $doctrineReason = "run(s) not usable: $((@($doctrineInvalid | ForEach-Object { $_.Name + ': ' + $_.Reason })) -join '; ')" }
+elseif ($doctrineMissing.Count -gt 0) { $doctrineReason = "planned run(s) $($doctrineMissing -join ', ') missing" }
+elseif ($doctrineUnbalanced.Count -gt 0) { $doctrineReason = "seed(s) $($doctrineUnbalanced -join ', ') lack a WarSails or a FeatureOff run" }
+else { $doctrineStats = Measure-Arms $doctrineRuns 'FeatureOff' { $_.ArmyDays } }
+if ($null -ne $doctrineStats) {
+    $armyDetail += ('; doctrine effect vs FO: D={0} army-days ({1} of FO {2}), p={3} ({4} perms)' -f
+        (Format-Number $doctrineStats.D), (Format-Percent $doctrineStats.D $doctrineStats.BaseMean), (Format-Number $doctrineStats.BaseMean),
+        (Format-Number $doctrineStats.P '0.000'), $doctrineStats.Permutations)
+}
+else { $armyDetail += "; doctrine effect vs FO: n/a ($doctrineReason)" }
 $armyDetail += $planNote
 
 # ---------------------------------------------------------------------------
-# Info: per kingdom, keyed by kingdom id.
+# Info: per kingdom, keyed by kingdom id. Usable runs only: an unusable FeatureOff run (which
+# does not block the verdict) can hold a partial digest.
 # ---------------------------------------------------------------------------
 $kingdomRows = New-Object System.Collections.ArrayList
 if ($null -ne $armyStats) {
-    $kingdomIds = @($runs | ForEach-Object { $_.PerKingdom.Keys } | Sort-Object -Unique)
+    $validRuns = @($runs | Where-Object { $_.Valid })
+    $kingdomIds = @($validRuns | ForEach-Object { $_.PerKingdom.Keys } | Sort-Object -Unique)
     foreach ($kingdomId in $kingdomIds) {
         $k = $kingdomId
-        $name = @($runs | Where-Object { $_.PerKingdom.ContainsKey($k) } | ForEach-Object { $_.PerKingdom[$k].Name })[0]
-        $stats = Measure-Arms $runs { if ($_.PerKingdom.ContainsKey($k)) { $_.PerKingdom[$k].ArmyDays } else { 0 } }
+        $name = @($validRuns | Where-Object { $_.PerKingdom.ContainsKey($k) } | ForEach-Object { $_.PerKingdom[$k].Name })[0]
+        $kingdomArmyDays = { if ($_.PerKingdom.ContainsKey($k)) { $_.PerKingdom[$k].ArmyDays } else { 0 } }
+        $stats = Measure-Arms $validRuns 'AllOff' $kingdomArmyDays
+        $foMean = Get-Mean ([double[]]@($validRuns | Where-Object { $_.Mode -eq 'FeatureOff' } | ForEach-Object $kingdomArmyDays))
         $share = @{}
-        foreach ($mode in 'WarSails', 'FeatureOff') {
+        foreach ($mode in 'WarSails', 'AllOff', 'FeatureOff') {
             $own = 0; $ruler = 0
-            foreach ($run in @($runs | Where-Object { $_.Mode -eq $mode -and $_.PerKingdom.ContainsKey($k) })) {
+            foreach ($run in @($validRuns | Where-Object { $_.Mode -eq $mode -and $_.PerKingdom.ContainsKey($k) })) {
                 $own += $run.PerKingdom[$k].ArmyDays; $ruler += $run.PerKingdom[$k].RulerArmyDays
             }
             $share[$mode] = if ($own + $ruler -gt 0) { $ruler / [double]($own + $ruler) } else { [double]::NaN }
         }
         [void]$kingdomRows.Add([PSCustomObject]@{
-                KingdomId = $k; Kingdom = $name; WsMean = $stats.WsMean; FoMean = $stats.FoMean; Diff = $stats.D; S = $stats.S
-                RulerShareWs = $share['WarSails']; RulerShareFo = $share['FeatureOff']
+                KingdomId = $k; Kingdom = $name; WsMean = $stats.WsMean; AoMean = $stats.BaseMean; FoMean = $foMean; Diff = $stats.D; S = $stats.S
+                RulerShareWs = $share['WarSails']; RulerShareAo = $share['AllOff']; RulerShareFo = $share['FeatureOff']
             })
     }
 }
@@ -1143,10 +1241,10 @@ $exitCode = if ($verdicts -contains 'RigError') { 1 } elseif ($verdicts -contain
 Write-Host ('{0,-34} {1} {2}' -f $CheckInvariant, $invariantVerdict, $invariantDetail)
 Write-Host ('{0,-34} {1} {2}' -f $CheckArmyDays, $armyVerdict, $armyDetail)
 if ($kingdomRows.Count -gt 0) {
-    Write-Host ('  info  {0,-20} {1,8} {2,8} {3,7} {4,6}  {5}' -f 'kingdom', 'WS mean', 'FO mean', 'diff', 's', 'ruler share WS/FO')
+    Write-Host ('  info  {0,-20} {1,8} {2,8} {3,8} {4,7} {5,6}  {6}' -f 'kingdom', 'WS mean', 'AO mean', 'FO mean', 'WS-AO', 's', 'ruler share WS/AO/FO')
     foreach ($row in $kingdomRows) {
-        Write-Host ('  info  {0,-20} {1,8} {2,8} {3,7} {4,6}  {5}/{6}' -f $row.Kingdom, (Format-Number $row.WsMean), (Format-Number $row.FoMean),
-            (Format-Number $row.Diff), (Format-Number $row.S), (Format-Percent $row.RulerShareWs 1), (Format-Percent $row.RulerShareFo 1))
+        Write-Host ('  info  {0,-20} {1,8} {2,8} {3,8} {4,7} {5,6}  {6}/{7}/{8}' -f $row.Kingdom, (Format-Number $row.WsMean), (Format-Number $row.AoMean),
+            (Format-Number $row.FoMean), (Format-Number $row.Diff), (Format-Number $row.S), (Format-Percent $row.RulerShareWs 1), (Format-Percent $row.RulerShareAo 1), (Format-Percent $row.RulerShareFo 1))
     }
 }
 foreach ($row in $violations) { Write-Host "  FAIL  $row" }
@@ -1157,7 +1255,7 @@ $armyJson = [ordered]@{ check = $CheckArmyDays; verdict = $armyVerdict; detail =
 if ($null -ne $armyStats) {
     $armyJson.d = ConvertTo-JsonNumber $armyStats.D
     $armyJson.wsMean = ConvertTo-JsonNumber $armyStats.WsMean
-    $armyJson.foMean = ConvertTo-JsonNumber $armyStats.FoMean
+    $armyJson.aoMean = ConvertTo-JsonNumber $armyStats.BaseMean
     $armyJson.s = ConvertTo-JsonNumber $armyStats.S
     $armyJson.df = $armyStats.Df
     $armyJson.p = ConvertTo-JsonNumber $armyStats.P
@@ -1167,6 +1265,21 @@ if ($null -ne $armyStats) {
     $armyJson.mdePercent = ConvertTo-JsonNumber $armyStats.MdePercent
     $armyJson.alpha = $Alpha
 }
+# Info only, never a verdict: WarSails vs FeatureOff (the doctrine effect).
+$doctrineJson = [ordered]@{ available = ($null -ne $doctrineStats); reason = $doctrineReason }
+if ($null -ne $doctrineStats) {
+    $doctrineJson.d = ConvertTo-JsonNumber $doctrineStats.D
+    $doctrineJson.wsMean = ConvertTo-JsonNumber $doctrineStats.WsMean
+    $doctrineJson.foMean = ConvertTo-JsonNumber $doctrineStats.BaseMean
+    $doctrineJson.s = ConvertTo-JsonNumber $doctrineStats.S
+    $doctrineJson.df = $doctrineStats.Df
+    $doctrineJson.p = ConvertTo-JsonNumber $doctrineStats.P
+    $doctrineJson.minP = ConvertTo-JsonNumber $doctrineStats.MinP
+    $doctrineJson.permutations = $doctrineStats.Permutations
+    $doctrineJson.mde = ConvertTo-JsonNumber $doctrineStats.Mde
+    $doctrineJson.mdePercent = ConvertTo-JsonNumber $doctrineStats.MdePercent
+}
+$armyJson.doctrine = $doctrineJson
 $doc = [ordered]@{
     schema      = 1
     job         = $jobFull
@@ -1190,9 +1303,9 @@ $doc = [ordered]@{
     missingRuns = @($missingRuns)
     kingdoms    = @($kingdomRows | ForEach-Object {
             [ordered]@{
-                kingdomId = $_.KingdomId; kingdom = $_.Kingdom; wsMean = ConvertTo-JsonNumber $_.WsMean; foMean = ConvertTo-JsonNumber $_.FoMean
-                diff = ConvertTo-JsonNumber $_.Diff; s = ConvertTo-JsonNumber $_.S
-                rulerShareWs = ConvertTo-JsonNumber $_.RulerShareWs; rulerShareFo = ConvertTo-JsonNumber $_.RulerShareFo
+                kingdomId = $_.KingdomId; kingdom = $_.Kingdom; wsMean = ConvertTo-JsonNumber $_.WsMean; aoMean = ConvertTo-JsonNumber $_.AoMean
+                foMean = ConvertTo-JsonNumber $_.FoMean; diff = ConvertTo-JsonNumber $_.Diff; s = ConvertTo-JsonNumber $_.S
+                rulerShareWs = ConvertTo-JsonNumber $_.RulerShareWs; rulerShareAo = ConvertTo-JsonNumber $_.RulerShareAo; rulerShareFo = ConvertTo-JsonNumber $_.RulerShareFo
             }
         })
     warnings    = @($warnings)

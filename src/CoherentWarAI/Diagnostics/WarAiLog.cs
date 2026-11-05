@@ -46,6 +46,15 @@ namespace CoherentWarAI.Diagnostics
             return string.Format("Year {0}, {1} {2}", now.GetYear, now.GetSeasonOfYear, now.GetDayOfSeason + 1);
         }
 
+        /// <summary>
+        /// A hero for a log line: the display name plus " [id=&lt;StringId&gt;]". Names are not
+        /// unique, the id is what tools/Compare-Ac25a.ps1 links log lines to heroes by.
+        /// </summary>
+        public static string HeroRef(TaleWorlds.CampaignSystem.Hero hero)
+        {
+            return string.IsNullOrEmpty(hero.StringId) ? hero.Name.ToString() : hero.Name + " [id=" + hero.StringId + "]";
+        }
+
         /// <summary>Starts a fresh log for this session.</summary>
         public static void Start()
         {

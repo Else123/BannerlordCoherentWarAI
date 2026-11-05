@@ -223,7 +223,7 @@ namespace CoherentWarAI.Behaviors
                 WarAiLog.Write("Posture", string.Format(
                     "  {0}: {1} (strength {2:F0}, valor {3}{4})",
                     isMarshal ? "MARSHAL" : "attacks",
-                    party.LeaderHero.Name,
+                    WarAiLog.HeroRef(party.LeaderHero),
                     party.Party.EstimatedStrength,
                     party.LeaderHero.GetTraitLevel(DefaultTraits.Valor),
                     party.LeaderHero.Clan == Clan.PlayerClan ? ", your clan" : string.Empty));
