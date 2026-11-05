@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace CoherentWarAI.Logic
 {
@@ -78,6 +79,39 @@ namespace CoherentWarAI.Logic
         public static bool MayRaiseArmy(bool isMarshal, bool doctrineEnabled)
         {
             return !doctrineEnabled || isMarshal;
+        }
+
+        /// <summary>
+        /// Whether the next lord in the post ranking becomes marshal. A lord already
+        /// leading a host always does, even past <paramref name="marshalCount"/>:
+        /// gathering an army takes longer than a day, and the mod never disbands one,
+        /// so a host leader outside the post would be a second offensive the doctrine
+        /// does not count (T-0115). Ranked first, host leaders fill the posts before
+        /// anyone new is appointed.
+        /// </summary>
+        public static bool IsAppointed(bool leadsHost, int appointedSoFar, int marshalCount)
+        {
+            return leadsHost || appointedSoFar < marshalCount;
+        }
+
+        /// <summary>
+        /// Sorts the day's <paramref name="attackers"/> for the marshal posts - host
+        /// leaders first, then by <paramref name="fitness"/> (see
+        /// <see cref="PosturePlanner.CompareForOffense"/>) - and returns how many of
+        /// them, counted from the front, are appointed (<see cref="IsAppointed"/>).
+        /// Because host leaders rank first, the marshals are always a prefix of the
+        /// sorted list.
+        /// </summary>
+        public static int RankForPosts<T>(List<T> attackers, Func<T, bool> leadsHost, Func<T, float> fitness, int marshalCount)
+        {
+            attackers.Sort((a, b) => PosturePlanner.CompareForOffense(leadsHost(a), fitness(a), leadsHost(b), fitness(b)));
+
+            int appointed = 0;
+            while (appointed < attackers.Count && IsAppointed(leadsHost(attackers[appointed]), appointed, marshalCount))
+            {
+                appointed++;
+            }
+            return appointed;
         }
 
         private static float AggressionScoreFor(float partyStrength, int valorTraitLevel, float valorWeight)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace CoherentWarAI.Logic
 {
@@ -99,6 +100,71 @@ namespace CoherentWarAI.Logic
                 return Posture.Defensive;
             }
             return aggressionRank < aggressiveSlots ? Posture.Aggressive : Posture.Defensive;
+        }
+
+        /// <summary>
+        /// Order for the offensive ranking: lords leading a host first, then by score
+        /// (descending). Negative when the first lord ranks ahead of the other. Used
+        /// for the posture slots (by <see cref="AggressionScore"/>) and the marshal
+        /// posts (by <see cref="MarshalPlanner.MarshalSuitability"/>) alike.
+        /// Host leaders only move ahead within the existing allowance - the slot
+        /// count itself never grows for them (T-0115): on a "0 may attack" day a
+        /// host keeps going in Defensive posture, so a relief army keeps its
+        /// defender mission instead of being turned to the offensive.
+        /// </summary>
+        public static int CompareForOffense(bool leadsHost, float score, bool otherLeadsHost, float otherScore)
+        {
+            if (leadsHost != otherLeadsHost)
+            {
+                return leadsHost ? -1 : 1;
+            }
+            return otherScore.CompareTo(score);
+        }
+
+        /// <summary>
+        /// Whether a lord gets the host-first priority for the offensive slots: he
+        /// leads a host that is not a defender army. A defender (relief) host is no
+        /// offensive the doctrine has to count, and moving it into a slot would turn
+        /// it Aggressive - vanilla then stops scoring Defender missions for it and
+        /// the relief is abandoned (T-0115). It still competes by score as before.
+        /// </summary>
+        public static bool TakesSlotFirst(bool leadsHost, bool hostIsDefender)
+        {
+            return leadsHost && !hostIsDefender;
+        }
+
+        /// <summary>
+        /// Sorts <paramref name="parties"/> into offensive rank order by
+        /// <see cref="CompareForOffense"/>, swapping <paramref name="scores"/> (the
+        /// parallel list of their <see cref="AggressionScore"/>s) along. Rank 0 is the
+        /// first offensive slot (<see cref="DecidePosture"/>). Selection sort keeps it
+        /// allocation-free on a list that is at most a few dozen entries.
+        /// </summary>
+        public static void RankForOffense<T>(IList<T> parties, IList<float> scores, Func<T, bool> leadsHost)
+        {
+            for (int rank = 0; rank < parties.Count; rank++)
+            {
+                int best = rank;
+                for (int i = rank + 1; i < parties.Count; i++)
+                {
+                    if (CompareForOffense(leadsHost(parties[i]), scores[i], leadsHost(parties[best]), scores[best]) < 0)
+                    {
+                        best = i;
+                    }
+                }
+                if (best == rank)
+                {
+                    continue;
+                }
+
+                T swapParty = parties[best];
+                parties[best] = parties[rank];
+                parties[rank] = swapParty;
+
+                float swapScore = scores[best];
+                scores[best] = scores[rank];
+                scores[rank] = swapScore;
+            }
         }
 
         private static float Clamp01(float value)

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using CoherentWarAI.Diagnostics;
 using CoherentWarAI.Logic;
@@ -30,6 +31,12 @@ namespace CoherentWarAI.Behaviors
         private readonly List<float> _scores = new List<float>();
 
         private static HashSet<MobileParty> _marshals = new HashSet<MobileParty>();
+
+        // Host-first predicates for PosturePlanner.RankForOffense, cached so the
+        // daily ranking allocates no delegate per realm.
+        private static readonly Func<MobileParty, bool> OffensiveHostsFirst =
+            party => PosturePlanner.TakesSlotFirst(LeadsHost(party), party.Army?.ArmyType == Army.ArmyTypes.Defender);
+        private static readonly Func<MobileParty, bool> PlainRanking = party => false;
 
         /// <summary>
         /// Whether this lord currently leads one of his realm's offensives. Only
@@ -139,29 +146,18 @@ namespace CoherentWarAI.Behaviors
             List<MobileParty> attackers = new List<MobileParty>();
 
             // Rank by aggression score (descending) so the strongest, boldest lords
-            // take the offensive slots. Selection sort keeps it allocation-free on a
-            // list that is at most a few dozen entries.
+            // take the offensive slots. Under the doctrine a lord already leading a
+            // non-defender host ranks first (T-0115): the mod never disbands a host,
+            // so outside the slots it would be an offensive no marshal post counts.
+            // The slot count is not raised for him - on a "0 may attack" day his host
+            // stays Defensive. A defender (relief) host gets no priority, so it is not
+            // pushed into Aggressive and keeps its mission. Without the doctrine
+            // vanilla raises hosts freely, so the plain ranking stays.
+            PosturePlanner.RankForOffense(_candidates, _scores,
+                settings.EnableMarshalDoctrine ? OffensiveHostsFirst : PlainRanking);
+
             for (int rank = 0; rank < _candidates.Count; rank++)
             {
-                int best = rank;
-                for (int i = rank + 1; i < _candidates.Count; i++)
-                {
-                    if (_scores[i] > _scores[best])
-                    {
-                        best = i;
-                    }
-                }
-                if (best != rank)
-                {
-                    MobileParty swapParty = _candidates[best];
-                    _candidates[best] = _candidates[rank];
-                    _candidates[rank] = swapParty;
-
-                    float swapScore = _scores[best];
-                    _scores[best] = _scores[rank];
-                    _scores[rank] = swapScore;
-                }
-
                 Posture posture = PosturePlanner.DecidePosture(rank, aggressiveSlots);
                 MobileParty party = _candidates[rank];
                 if (settings.EnableDefensivePosture)
@@ -195,35 +191,33 @@ namespace CoherentWarAI.Behaviors
                 : 0;
 
             // Rank by fitness for the post - strength first, nudged by boldness and
-            // by rank, so a ruler tends to lead his own host. Fitness is computed
-            // once per lord rather than per comparison.
+            // by rank, so a ruler tends to lead his own host - with lords already
+            // leading a host ahead of everyone, so they fill the posts before anyone
+            // new is appointed. Fitness is computed once per lord rather than per
+            // comparison.
             Dictionary<MobileParty, float> fitness = new Dictionary<MobileParty, float>(attackers.Count);
             foreach (MobileParty attacker in attackers)
             {
                 fitness[attacker] = MarshalFitness(kingdom, attacker);
             }
-            attackers.Sort((a, b) => fitness[b].CompareTo(fitness[a]));
+            // A lord already leading a host keeps the post regardless of the day's
+            // ranking. Gathering an army takes longer than a day, and stripping the
+            // appointment mid-muster would leave the host half-formed - the same
+            // flapping the target hysteresis prevents.
+            int appointed = MarshalPlanner.RankForPosts(attackers, LeadsHost, party => fitness[party], marshalCount);
 
-            int appointed = 0;
             // Published into CommandBehavior when chain of command is on, so
             // IsMarshal(Hero) covers today's offensive marshals too (SPEC step 16).
             List<Hero> appointedHeroes = settings.EnableChainOfCommand ? new List<Hero>() : null;
             for (int i = 0; i < attackers.Count; i++)
             {
                 MobileParty party = attackers[i];
-
-                // A lord already leading a host keeps the post regardless of the
-                // day's ranking. Gathering an army takes longer than a day, and
-                // stripping the appointment mid-muster would leave the host
-                // half-formed - the same flapping the target hysteresis prevents.
-                bool leadsHost = party.Army != null && party.Army.LeaderParty == party;
-                bool isMarshal = leadsHost || appointed < marshalCount;
+                bool isMarshal = i < appointed;
 
                 if (isMarshal)
                 {
                     _marshals.Add(party);
                     appointedHeroes?.Add(party.LeaderHero);
-                    appointed++;
                 }
 
                 WarAiLog.Write("Posture", string.Format(
@@ -239,6 +233,11 @@ namespace CoherentWarAI.Behaviors
             {
                 CommandBehavior.PublishOffenseHolders(kingdom, appointedHeroes);
             }
+        }
+
+        private static bool LeadsHost(MobileParty party)
+        {
+            return party.Army != null && party.Army.LeaderParty == party;
         }
 
         private static float MarshalFitness(Kingdom kingdom, MobileParty party)
@@ -308,10 +307,6 @@ namespace CoherentWarAI.Behaviors
             return true;
         }
 
-        /// <summary>
-        /// Share of the kingdom's fiefs currently under threat. Drives how many
-        /// lords may be spared for offense - an invaded realm pulls its lords home.
-        /// </summary>
         /// <summary>
         /// Share of a realm's fortifications currently under threat, 0..1. Exposed
         /// so other behaviours can ask whether the realm has a war on its hands.
